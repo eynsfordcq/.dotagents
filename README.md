@@ -40,7 +40,7 @@ npx skills --help
 To add a skill from this repository:
 
 ```bash
-npx skills add <current-repo> --skill pytest -a github-copilot -g
+npx skills add <current-repo> --skill pytest -g
 ```
 
 ### Agent Configuration
@@ -50,7 +50,9 @@ We use **GitHub Copilot** as our primary agent. When adding skills, select the a
 - Use `-g` for **global installation** (recommended - setup once for all projects)
 - Omit `-g` for project-specific installation
 
-> **Note:** As of now, GitHub Copilot falls under the `universal` agent category (`~/.agent`) in skills, but GitHub Copilot itself doesn't seem to read from that directory yet. For now, **choose "copy to agent" instead of "symlink"** when prompted. (Or do symlink manually)
+> **Note:** GitHub Copilot falls under the `universal` agent category (`~/.agents/skills`) in the skills CLI. Make sure `~/.agents/skills` is set to `true` in **Chat: Agent Skills Locations** in VS Code Settings.
+>
+> Versions before **1.109.2** had an issue where GitHub Copilot didn't read from the universal directory. If you're using an older version, add `-a github-copilot` to the command above and choose **"copy to agent"** instead of **"symlink"** when prompted (or symlink manually).
 
 ### Installation Scope
 
