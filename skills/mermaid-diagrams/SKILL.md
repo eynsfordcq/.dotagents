@@ -28,10 +28,12 @@ Available Diagram Types:
 1. **Validity**: Always generate valid MermaidJS syntax.
 2. **Simplicity**: Prefer clarity and compatibility. Avoid "beta" or complex features.
 3. **No Styling**: Do **NOT** use `style`, `classDef`, `linkStyle`, or inline styling. Do **NOT** apply colors, strokes, or dash arrays. Keep the diagram raw and clean.
-4. **Quoting**: Quoting: Always use standard double quotes (`"..."`) for text labels. Do NOT use Markdown strings (`"`...`"`). Use `<br/>` for newlines and `#quot;` for literal quotes. Always use double quotes for labels containing special characters (spaces, `()`, `[]`, `{}`, `/`, `:`, `-`).
-    * *Bad*: `A -- User Action --> B`
-    * *Good*: `A -- "User Action" --> B`
-5. **Node Shapes**: Stick to simple node definitions: `[]` (rectangle), `()` (round), `{}` (rhombus/decision).
+4. **Quoting**: **Quote ALL text labels without exception.** Use standard double quotes (`"..."`) for every text string in your diagram—this includes node labels, edge labels, participant names, and all other text content. Do NOT use Markdown strings (`"`...`"`). Use `<br/>` for newlines and `&#quot;` for literal quotes.
+
+- _Bad examples_: `A -- User Action --> B`, `SpanProcessor.process_span`, `Exporter.export(spans)`, `{"Is it valid?"}`, `A -- Yes --> B`
+- _Good examples_: `A -- "User Action" --> B`, `["SpanProcessor.process_span"]`, `["Exporter.export(spans)"]`, `{"Is it valid?"}`, `A -- "Yes" --> B`
+
+1. **Node Shapes**: Stick to simple node definitions: `[]` (rectangle), `()` (round), `{}` (rhombus/decision).
 
 ## Supported Diagram Types
 
@@ -39,13 +41,13 @@ Available Diagram Types:
 
 Used for workflows, decision trees, and process maps.
 
-* **Direction**: Use `TD` (Top-Down) or `LR` (Left-Right).
-* **Nodes**: `id["Label Text"]` or just `id`.
-* **Edges**:
-  * Solid: `-->`
-  * Dotted: `-.->`
-  * With Text: `-- "Label" -->` or `-. "Label" .->`
-* **Subgraphs**: Use for grouping logic.
+- **Direction**: Use `TD` (Top-Down) or `LR` (Left-Right).
+- **Nodes**: `id["Label Text"]` or just `id`.
+- **Edges**:
+  - Solid: `-->`
+  - Dotted: `-.->`
+  - With Text: `-- "Label" -->` or `-. "Label" .->`
+- **Subgraphs**: Use for grouping logic.
 
 **Example**:
 
@@ -61,12 +63,12 @@ flowchart TD
 
 Used for interactions between actors/systems over time.
 
-* **Participants**: Define aliases explicitly if names are long: `participant A as "Long Name"`.
-* **Messages**:
-  * Solid (Synchronous): `->>`
-  * Dotted (Response): `-->>`
-* **grouping**: Use `alt`/`else` for logic, `loop` for iterations, `opt` for optional steps.
-* **Note**: `Note over A,B: Text`.
+- **Participants**: Define aliases explicitly if names are long: `participant A as "Long Name"`.
+- **Messages**:
+  - Solid (Synchronous): `->>`
+  - Dotted (Response): `-->>`
+- **grouping**: Use `alt`/`else` for logic, `loop` for iterations, `opt` for optional steps.
+- **Note**: `Note over A,B: Text`.
 
 **Example**:
 
@@ -86,13 +88,13 @@ sequenceDiagram
 
 Used for object-oriented modeling and system structure.
 
-* **Relationships**:
-  * Inheritance: `<|--`
-  * Composition: `*--`
-  * Aggregation: `o--`
-  * Association: `-->`
-* **Cardinality**: Place in quotes: `"1"`, `"0..*"`.
-* **Members**: Define types and visibility (`+`, `-`) cleanly.
+- **Relationships**:
+  - Inheritance: `<|--`
+  - Composition: `*--`
+  - Aggregation: `o--`
+  - Association: `-->`
+- **Cardinality**: Place in quotes: `"1"`, `"0..*"`.
+- **Members**: Define types and visibility (`+`, `-`) cleanly.
 
 **Example**:
 
@@ -113,13 +115,13 @@ classDiagram
 
 Used for database schemas and data modeling.
 
-* **Cardinality**:
-  * `||` (Exactly one)
-  * `|{` (One or more)
-  * `o|` (Zero or one)
-  * `o{` (Zero or more)
-* **Attributes**: Define inside `{}` block with `type name`.
-* **Keys**: Use `PK` (Primary Key) and `FK` (Foreign Key).
+- **Cardinality**:
+  - `||` (Exactly one)
+  - `|{` (One or more)
+  - `o|` (Zero or one)
+  - `o{` (Zero or more)
+- **Attributes**: Define inside `{}` block with `type name`.
+- **Keys**: Use `PK` (Primary Key) and `FK` (Foreign Key).
 
 **Example**:
 
@@ -140,10 +142,7 @@ erDiagram
 
 For complex edge cases or obscure syntax, consult:
 
-* `references/flowchart.md`
-* `references/sequence.md`
-* `references/class.md`
-* `references/erd.md`
-
-```
-
+- `references/flowchart.md`
+- `references/sequence.md`
+- `references/class.md`
+- `references/erd.md`
