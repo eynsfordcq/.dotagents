@@ -27,7 +27,7 @@ Learn more at [https://agentskills.io/home](https://agentskills.io/home)
 
 ## Management
 
-We use the `npx skills` CLI tool to manage our agent skills. For more information, visit [https://github.com/vercel-labs/skills](https://github.com/vercel-labs/skills)
+We recommend the `npx skills` CLI tool to manage our agent skills. For more information, visit [https://github.com/vercel-labs/skills](https://github.com/vercel-labs/skills).
 
 ### CLI Reference
 
@@ -43,6 +43,12 @@ To add a skill from this repository:
 npx skills add <current-repo> --skill pytest -g
 ```
 
+To add all skills from this repository:
+
+```bash
+npx skills add <current-repo> --skill "*" -g
+```
+
 ### Agent Configuration
 
 We use **GitHub Copilot** as our primary agent. When adding skills, select the appropriate agent:
@@ -52,7 +58,9 @@ We use **GitHub Copilot** as our primary agent. When adding skills, select the a
 
 > **Note:** GitHub Copilot falls under the `universal` agent category (`~/.agents/skills`) in the skills CLI. Make sure `~/.agents/skills` is set to `true` in **Chat: Agent Skills Locations** in VS Code Settings.
 >
-> Versions before **1.109.2** had an issue where GitHub Copilot didn't read from the universal directory. If you're using an older version, add `-a github-copilot` to the command above and choose **"copy to agent"** instead of **"symlink"** when prompted (or symlink manually).
+> If you're using WSL and your agent won't read the skills even if you explicitly so it to do so, it may be related to [this issue](https://github.com/microsoft/vscode/issues/292297). Monitor the issue and keep your VS Code updated.
+>
+> VS Code before version **1.109.2** had an issue where GitHub Copilot didn't read from the universal directory. If you're using an older version, add `-a github-copilot` to the command above and choose **"copy to agent"** instead of **"symlink"** when prompted (or symlink manually).
 
 ### Installation Scope
 
