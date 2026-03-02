@@ -6,9 +6,8 @@ metadata:
     - code-review 
     - software-development
   references:
-    - https://google.github.io/styleguide/pyguide.html
     - https://skills.sh/wshobson/agents/code-review-excellence
-    - https://github.com/realpython/python-guide
+
 ---
 
 # Code Review
@@ -101,6 +100,7 @@ For org-specific style rules, load the relevant reference file based on the lang
 
 | Language | Reference | Key topics |
 |---|---|---|
+| Java | [references/java.md](references/java.md) (+ [references/java-springboot.md](references/java-springboot.md) for Spring Boot code) | Class organization, naming semantics, exception handling, Javadoc; Spring Boot layering/validation/error handling/testing |
 | Python | [references/python.md](references/python.md) | Imports, exceptions, type annotations, naming, truth testing, strings, resource management |
 
 If no reference exists for the language, apply general best practices for that language without inventing org-specific rules.

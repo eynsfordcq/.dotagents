@@ -1,4 +1,10 @@
-# Python Code Standards
+---
+references:
+  - https://skills.sh/wshobson/agents/code-review-excellence
+  - https://google.github.io/styleguide/pyguide.html
+---
+
+# Python Coding Standards
 
 > Non-formatter rules only. Formatting (indentation, line length, whitespace, blank lines) is handled by **Ruff/Black** — run it, don't discuss it.
 
