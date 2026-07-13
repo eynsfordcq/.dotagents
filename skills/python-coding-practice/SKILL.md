@@ -1,7 +1,14 @@
 ---
-references:
-  - https://skills.sh/wshobson/agents/code-review-excellence
-  - https://google.github.io/styleguide/pyguide.html
+name: python-coding-practice
+description: Python coding standards for imports, exceptions, type annotations, naming, truth testing, strings, and resource management. Use when writing or reviewing Python code, or when org-specific Python style rules are needed.
+metadata:
+  categories:
+    - coding-standards
+    - python
+    - software-development
+  references:
+    - https://skills.sh/wshobson/agents/code-review-excellence
+    - https://google.github.io/styleguide/pyguide.html
 ---
 
 # Python Coding Standards

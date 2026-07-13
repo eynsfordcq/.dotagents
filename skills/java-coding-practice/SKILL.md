@@ -1,6 +1,13 @@
 ---
-references:
-  - https://google.github.io/styleguide/javaguide.html
+name: java-coding-practice
+description: Java coding standards for class organization, naming semantics, exceptions, Javadoc, and programming practices. Use when writing or reviewing Java code; load the Spring Boot addendum for Spring Boot services.
+metadata:
+  categories:
+    - coding-standards
+    - java
+    - software-development
+  references:
+    - https://google.github.io/styleguide/javaguide.html
 ---
 
 # Java Code Standards
@@ -47,4 +54,4 @@ references:
 
 Load framework-specific guidance only when relevant to the reviewed code:
 
-* **Spring Boot:** See [java-springboot.md](java-springboot.md)
+* **Spring Boot:** See [references/java-springboot.md](references/java-springboot.md)

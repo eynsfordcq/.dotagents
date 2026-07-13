@@ -1,6 +1,63 @@
-# Python Unit Testing (pytest)
+---
+name: python-unit-test
+description: Python-specific unit testing standards using pytest, dependency isolation, and deterministic test structure. Use when writing or reviewing Python tests.
+metadata:
+  categories:
+    - testing
+    - python
+    - software-development
+---
+
+# Python Unit Testing
 
 ## Overview
+
+This guide focuses on high-performance, deterministic testing suitable for modern backend systems. It emphasizes strict dependency isolation, clear intent via the **Given-When-Then** pattern, and a well-structured project layout.
+
+**Core Testing Principles**:
+
+1. **Strict Mocking**: **Always** mock or fake external dependencies at system boundaries.
+    - **No** real database connections (use fakes or in-memory replacements if absolutely necessary).
+    - **No** real network calls (mock HTTP clients, S3, external APIs).
+    - **No** real message queues (mock Kafka/RabbitMQ consumers/producers).
+    - **No** real filesystem access (use temporary file fixtures/systems).
+2. **Determinism**: Tests must yield the same result every time, regardless of environment, network status, or execution order.
+3. **Isolation**: Tests should not share state. Use setup/teardown mechanics or fixtures cleanly.
+4. **Coverage Focus**:
+    - **Include**: Complex business logic, edge cases, error handling pipelines.
+    - **Exclude**: Configuration files, framework glue code, and simple data containers.
+
+---
+
+## Given-When-Then & Naming Conventions
+
+Tests must clearly communicate intent using the **Given-When-Then** pattern or similar structured style (e.g., Arrange-Act-Assert).
+
+### Naming Convention
+
+Use descriptive names that describe the scenario and expected outcome:
+e.g., `TestGiven[Context]When[Action]Then[ExpectedOutcome]`
+
+### Structure Guidelines
+
+- **Given** (Arrange): Set up the test state and mock dependencies.
+- **When** (Act): Execute the behavior being tested.
+- **Then** (Assert): Verify the expected outcomes and state changes.
+
+---
+
+## Best Practices
+
+- **Test Behavior, Not Implementation**: Avoid testing private fields or the internal state of objects. Tests should verify outcomes and side effects from the perspective of an external caller.
+- **Keep Tests Fast**: Unit tests should execute in milliseconds. Slow operations usually indicate an external dependency needs mocking.
+- **Test Cancellation and Timeouts**: In languages with native concurrency APIs (like Go's `context` or Python's `asyncio`), always test how functions handle cancellation.
+- **Use Test Fakes over Mocks**: Wherever possible, provide lightweight implementations of an interface rather than complex mocking frameworks that record and assert calls tightly coupled to the implementation.
+
+---
+
+## pytest
+
+### Overview
 
 pytest is the industry-standard Python testing framework. This guide focuses on high-performance, deterministic testing suitable for modern backend systems. It emphasizes strict dependency isolation, clear intent via the **Given-When-Then** pattern, and a `src`-based project layout.
 
@@ -26,11 +83,11 @@ uv add --dev pytest-asyncio pytest-mock
 uv add --dev httpx
 ```
 
-## Project Layout & Configuration
+### Project Layout & Configuration
 
 Tests must strictly mirror the application structure found in `src/`.
 
-### Recommended Structure
+#### Recommended Structure
 
 ```text
 pyproject.toml
@@ -53,7 +110,7 @@ tests/
             test_user_view.py
 ```
 
-### Configuration (`pyproject.toml`)
+#### Configuration (`pyproject.toml`)
 
 Ensure `pythonpath` is set so pytest resolves `src` correctly without installation hacks.
 
@@ -72,9 +129,9 @@ markers = [
 ]
 ```
 
-## Fixtures - Dependency Injection
+### Fixtures - Dependency Injection
 
-### Basic Fixtures
+#### Basic Fixtures
 
 ```python
 # tests/conftest.py
@@ -94,12 +151,12 @@ def test_given_user_payload_when_validating_then_succeeds(sample_user_payload):
     assert is_valid is True
 ```
 
-### Fixture Scopes
+#### Fixture Scopes
 
 - `function` (default): Setup/teardown for every test. Safe, isolated.
 - `session`: Setup once per test run. Use sparingly for expensive, stateless setup.
 
-### Built-in Fixtures
+#### Built-in Fixtures
 
 - `tmp_path`: Returns a `pathlib.Path` object to a temporary directory unique to the test invocation.
 - `monkeypatch`: For modifying environments or replacing attributes temporarily.
@@ -116,11 +173,11 @@ def test_given_env_var_when_configuring_then_reads_value(monkeypatch):
     assert config.api_key == "secret-123"
 ```
 
-## Mocking (pytest-mock)
+### Mocking (pytest-mock)
 
 **Strict Rule**: Mock all external boundaries.
 
-### Mocking External APIs
+#### Mocking External APIs
 
 ```python
 # src/mypkg/services/external_api.py
@@ -159,7 +216,7 @@ async def test_given_valid_id_when_fetching_profile_then_returns_data(mocker):
     assert result == expected_data
 ```
 
-### Mocking Database Repositories
+#### Mocking Database Repositories
 
 Do not test the database driver; test your service logic.
 
@@ -179,18 +236,18 @@ def test_given_missing_user_when_getting_name_then_returns_guest(mocker):
     mock_repo.find_by_id.assert_called_once_with(1)
 ```
 
-### Monkeypatching Strategy
+#### Monkeypatching Strategy
 
 Use `monkeypatch` selectively. Do not use `monkeypatch` to replace dependencies that should be injected.
 
-#### When to Use `monkeypatch`
+##### When to Use `monkeypatch`
 
 1. **Environment Variables**: Testing configuration loading or feature flags.
 2. **System/Standard Library Calls**: Controlling `time.time()`, `builtins.input()`.
 
 **Rule of Thumb:** If you are `monkeypatching` a class or function that belongs to your own codebase, try to refactor to Dependency Injection first.
 
-## Parametrization
+### Parametrization
 
 Use parametrization to test multiple inputs against the same logic without code duplication.
 
@@ -207,9 +264,9 @@ def test_given_operands_when_adding_then_returns_sum(input_a, input_b, expected)
     assert result == expected
 ```
 
-## FastAPI Testing
+### FastAPI Testing
 
-### Basic API Test
+#### Basic API Test
 
 ```python
 # tests/mypkg/test_main.py
@@ -224,7 +281,7 @@ def test_given_running_app_when_checking_health_then_returns_ok():
     assert response.json() == {"status": "ok"}
 ```
 
-### Dependency Overrides
+#### Dependency Overrides
 
 ```python
 # tests/mypkg/api/test_users.py
@@ -239,7 +296,7 @@ def test_given_db_error_when_creating_user_then_returns_500(client, mock_db_sess
     assert response.status_code == 500
 ```
 
-## Quick Reference Commands
+### Quick Reference Commands
 
 ```bash
 pytest

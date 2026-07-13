@@ -15,7 +15,7 @@ metadata:
 ## Review Workflow
 
 1. **Read the full code/diff** before commenting — avoid piecemeal reactions.
-2. **Identify the language(s)** and load the relevant org style guide from `references/` if one exists (see [Style Violations](#style-violations) below).
+2. **Identify the language(s)** and load language-specific skills if available (see [Language-Specific Skills](#language-specific-skills) below).
 3. **Work through the checklist** below, covering all changed code.
 4. **Write structured feedback** grouped by severity using the output format below.
 
@@ -23,7 +23,7 @@ metadata:
 
 **Goals:** catch bugs and edge cases, ensure maintainability, share knowledge, enforce standards, improve design and architecture.
 
-**Not goals:** show off knowledge, nitpick auto-fixable formatting, block progress unnecessarily, rewrite to personal preference.
+**Not goals:** show off knowledge, nitpick auto-formatable formatting, block progress unnecessarily, rewrite to personal preference.
 
 Good feedback is specific, actionable, educational, and focused on the code — not the person. Acknowledge good work alongside issues.
 
@@ -82,6 +82,7 @@ Work through each area systematically. Not every area will be relevant to every 
 ### 6. Testing
 
 - Are there tests? Do they cover edge cases and failure paths? Are they readable and maintained?
+- If a `<language>-unit-test` skill is available, evaluate tests against that skill's conventions.
 
 ### 7. Maintainability
 
@@ -92,19 +93,22 @@ Work through each area systematically. Not every area will be relevant to every 
 
 - Public APIs, classes, and modules have docstrings? Args/Returns/Raises documented?
 
+## Language-Specific Skills
+
+After identifying the language(s) under review, look for and apply these skills when available:
+
+| Kind | Skill name pattern | Use for |
+|---|---|---|
+| Coding standards | `<language>-coding-practice` | Org style, idioms, design conventions (e.g. `go-coding-practice`, `java-coding-practice`, `python-coding-practice`) |
+| Unit testing | `<language>-unit-test` | Test layout, naming, structure, and testing idioms (e.g. `go-unit-test`, `python-unit-test`) |
+
+If a matching skill is not available for the language, apply general best practices for that language without inventing org-specific rules.
+
 ## Style Violations
 
-Do **not** comment on auto-fixable formatting (indentation, line length, whitespace) — that's the linter/formatter's job.
+Do **not** comment on auto-formatable formatting (indentation, line length, whitespace) — that's the linter/formatter's job.
 
-For org-specific style rules, load the relevant reference file based on the language being reviewed:
-
-| Language | Reference | Key topics |
-|---|---|---|
-| Go | [references/go.md](references/go.md) | Package design/state management, interfaces and API design, context/error handling, concurrency, testing idioms |
-| Java | [references/java.md](references/java.md) (+ [references/java-springboot.md](references/java-springboot.md) for Spring Boot code) | Class organization, naming semantics, exception handling, Javadoc; Spring Boot layering/validation/error handling/testing |
-| Python | [references/python.md](references/python.md) | Imports, exceptions, type annotations, naming, truth testing, strings, resource management |
-
-If no reference exists for the language, apply general best practices for that language without inventing org-specific rules.
+For org-specific style rules, apply the relevant `<language>-coding-practice` skill when available (see [Language-Specific Skills](#language-specific-skills)).
 
 ## Output Format
 

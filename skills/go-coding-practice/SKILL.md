@@ -1,6 +1,13 @@
 ---
-references:
-  - https://google.github.io/styleguide/go/
+name: go-coding-practice
+description: Go coding standards for package design, naming, interfaces, context/error handling, concurrency, and testing idioms. Use when writing or reviewing Go code, or when org-specific Go style rules are needed.
+metadata:
+  categories:
+    - coding-standards
+    - go
+    - software-development
+  references:
+    - https://google.github.io/styleguide/go/
 ---
 
 # Go Code Standards

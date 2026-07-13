@@ -47,5 +47,5 @@ Use this addendum only when reviewing Spring Boot services/APIs.
 
 ## 7. Overlap with General Java Rules
 
-* Naming conventions, formatting, and comment quality remain governed by [java.md](java.md).
+* Naming conventions, formatting, and comment quality remain governed by [SKILL.md](../SKILL.md).
 * Lombok and Streams usage should be evaluated by readability, correctness, and team conventions rather than blanket usage mandates.
