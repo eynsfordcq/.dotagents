@@ -1,0 +1,12 @@
+{
+  "sources": [
+    {
+      "repo": ".",
+      "skills": ["*"]
+    },
+    {
+      "repo": "https://github.com/Leonxlnx/taste-skill",
+      "skills": ["design-taste-frontend"]
+    }
+  ]
+}

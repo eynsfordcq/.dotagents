@@ -37,17 +37,39 @@ npx skills --help
 
 ## Using Skills from This Repository
 
-To add a skill from this repository:
+Install **this repo’s skills plus configured third-party skills** (recommended):
 
 ```bash
-npx skills add <current-repo> --skill pytest -g
+./scripts/install-skills.sh -g -y
 ```
 
-To add all skills from this repository:
+That script reads [`install-skills.json`](install-skills.json) and runs `npx skills add <repo> --skill …` for each source.
+
+To install only first-party skills from this repository:
 
 ```bash
 npx skills add <current-repo> --skill "*" -g
 ```
+
+To install a single first-party skill:
+
+```bash
+npx skills add <current-repo> --skill code-review -g
+```
+
+### Adding a third-party skill
+
+1. Add a source entry to [`install-skills.json`](install-skills.json):
+
+```json
+{
+  "repo": "https://github.com/Leonxlnx/taste-skill",
+  "skills": ["design-taste-frontend"]
+}
+```
+
+2. Commit the config change.
+3. Re-run `./scripts/install-skills.sh -g -y` (no vendoring / no copy of upstream files into this repo).
 
 ### Agent Configuration
 
