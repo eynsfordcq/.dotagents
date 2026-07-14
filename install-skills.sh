@@ -3,7 +3,7 @@
 # Extra args are forwarded (e.g. -g -y -a claude-code).
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ROOT="$(cd "$(dirname "$0")" && pwd)"
 CONFIG="$ROOT/install-skills.json"
 
 if ! command -v jq >/dev/null 2>&1; then

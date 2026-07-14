@@ -40,7 +40,7 @@ npx skills --help
 Install **this repo’s skills plus configured third-party skills** (recommended):
 
 ```bash
-./scripts/install-skills.sh -g -y
+./install-skills.sh -g -y
 ```
 
 That script reads [`install-skills.json`](install-skills.json) and runs `npx skills add <repo> --skill …` for each source.
@@ -69,7 +69,7 @@ npx skills add <current-repo> --skill code-review -g
 ```
 
 2. Commit the config change.
-3. Re-run `./scripts/install-skills.sh -g -y` (no vendoring / no copy of upstream files into this repo).
+3. Re-run `./install-skills.sh -g -y` (no vendoring / no copy of upstream files into this repo).
 
 ### Agent Configuration
 
