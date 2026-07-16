@@ -48,13 +48,13 @@ That script reads [`install-skills.json`](install-skills.json) and runs `npx ski
 To install only first-party skills from this repository:
 
 ```bash
-npx skills add <current-repo> --skill "*" -g
+npx skills add https://github.com/eynsfordcq/agent-skills.git --skill "*" -g
 ```
 
 To install a single first-party skill:
 
 ```bash
-npx skills add <current-repo> --skill code-review -g
+npx skills add https://github.com/eynsfordcq/agent-skills.git --skill code-review -g
 ```
 
 ### Adding a third-party skill
