@@ -116,3 +116,10 @@ We rely on the standard `testing` package.
 * **Variable Declarations:** Use `var x Type` when you want to utilize the zero-value (ready to use, conveying it's empty). Use `x := value` when explicitly initializing.
 * **String Concatenation:** Use `+` for simple strings. Use `fmt.Sprintf` when formatting is involved. Use `strings.Builder` if you are building a string dynamically in a loop (it prevents quadratic memory allocations).
 * **Generics (`any` & Type Parameters):** Use generics when you actually have algorithms that operate uniformly across multiple types. Do not use them prematurely to create domain-specific languages (DSLs) or bypass static typing where interfaces would suffice.
+
+## 8. Taste
+
+Personal preferences, not hard standards. Prefer them when they do not fight a clearer local convention.
+
+* **Import aliases:** Avoid import aliases unless there is a real name collision. Rename the colliding local instead of aliasing the import.
+* **Error message truth:** Error messages must be true in every case that can produce them. Do not write a message that only fits some call paths.
