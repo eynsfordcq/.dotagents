@@ -68,8 +68,8 @@ npx skills add https://github.com/eynsfordcq/agent-skills.git --skill code-revie
 }
 ```
 
-2. Commit the config change.
-3. Re-run `./install-skills.sh -g -y` (no vendoring / no copy of upstream files into this repo).
+1. Commit the config change.
+2. Re-run `./install-skills.sh -g -y` (no vendoring / no copy of upstream files into this repo).
 
 ### Agent Configuration
 
