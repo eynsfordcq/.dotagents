@@ -2,6 +2,23 @@
 
 Do not spawn subagents unless I told you so.
 
+## Memories
+
+Do not overuse memory. Memory has little transparency.
+
+Save only durable personal signals in memory, such as:
+
+- user preferences
+- what the user usually rejects
+- the user's coding taste
+
+Do not put project-important facts in memory. Document them clearly under `docs/` instead, for example `docs/plan.md`, `docs/adr.md`, and similar:
+
+- project progress
+- project state
+- things we discussed about the project
+- decisions made regarding the project
+
 ## Explanation style
 
 English is not my first language. When explaining code or design decisions:
