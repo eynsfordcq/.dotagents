@@ -31,19 +31,6 @@ English is not my first language. When explaining code or design decisions:
 
 ## Code taste
 
-Prefer the design that is easiest to understand, test, and maintain —
-not the smallest diff, and not a speculative abstraction.
+Prefer the design that is easiest to understand, test, and maintain — not the smallest diff, and not a speculative abstraction.
 
-- Owner of a fact exposes it.
-  If a value is known at construction, return it there.
-  Do not erase it and recover it later through casts, request-scoped bags,
-  or callbacks.
-  Test: "did this design forget something it knew, then work to get it back?"
-- Abstraction must pay rent.
-  Do not add a type, interface, or parameter for a single consumer.
-  Two fields alone do not justify a carrier type.
-  Test: "would this still exist without its first consumer?"
-- Reshape, don't patch.
-  When the shape is wrong, change the shape.
-  Do not add a compensating layer, shim, or deprecated path.
-  Delete replaced code in the same change.
+Reshape, don't patch. When the shape is wrong, change the shape. Do not add a compensating layer, shim, or deprecated path. Delete replaced code in the same change.
