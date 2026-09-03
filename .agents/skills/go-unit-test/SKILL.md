@@ -226,6 +226,8 @@ func TestHealth(t *testing.T) {
 
 ### Context Cancellation
 
+Always use `t.Context()` for contexts under test. Never use `context.Background()` or `context.TODO()` unless verifying detached behavior.
+
 Always test cancellation paths:
 
 ```go

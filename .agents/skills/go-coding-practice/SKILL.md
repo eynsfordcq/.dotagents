@@ -54,6 +54,7 @@ Linters can't enforce context-aware naming. In Go, the length of a variable name
 
 * **Pass Values:** For plain data, small structs, and built-in types.
 * **Pass Pointers:** If the struct is very large, needs to be mutated, or contains synchronization fields (like `sync.Mutex`) that absolutely **cannot be copied**.
+* **Pointer Expressions (Go 1.26+):** Use `new(value)` for address of literal/expression. Never define `boolPtr` / `toPtr[T]` helpers that only return `&v`. Keep helpers only with extra logic.
 
 ### Interfaces
 
@@ -81,6 +82,7 @@ Go treats errors as standard values. Handle them deliberately.
 ### Handling Flow
 
 * **Line of Sight:** Handle errors immediately and return/break. Do not nest the "happy path" inside an `else` block.
+* **Typed Matching (Go 1.26+):** Use `errors.AsType[T](err)` returning `(T, bool)`. Never pre-declare var + `errors.As(err, &v)`.
 * **Panics:** Never use `panic` for normal error handling. Return an `error`. Only use `panic` or `log.Fatal` for literal impossible conditions or during initial app startup (e.g., invalid static config).
 
 ## 5. Concurrency
@@ -88,6 +90,8 @@ Go treats errors as standard values. Handle them deliberately.
 * **Goroutine Lifetimes:** Never start a goroutine without knowing exactly how and when it will stop. A blocked goroutine will never be garbage collected, leading to memory leaks.
 * **Context Cancellation:** Always pass contexts into goroutines so they can exit cleanly if the parent process times out or is canceled.
 * **Channel Direction:** Specify channel direction in function signatures to prevent accidental misuse and convey ownership: `func sum(values <-chan int)`.
+* **WaitGroup.Go (Go 1.25+):** Use `wg.Go(fn)` when the `WaitGroup` tracks the full goroutine lifetime. Never use manual `wg.Add(1)` + `go func() { defer wg.Done(); ... }()`. Ensure `fn` never panics (or recovers internally). Keep manual `Done` only when signaling early before goroutine exit.
+* **Ticker (Go 1.23+):** Use `time.Tick(d)` for fire-and-forget loop intervals. Use `time.NewTicker(d)` only when explicit `.Stop()` or `.Reset()` is required.
 
 ## 6. Testing Practices
 
@@ -114,8 +118,19 @@ We rely on the standard `testing` package.
 
 * **Nil Slices:** `nil` and an empty slice `[]int{}` are functionally identical in Go (`len` and `cap` are 0, and `append` works). Prefer declaring `var s []string` over `s := []string{}`. Do not write APIs that force callers to distinguish between the two.
 * **Variable Declarations:** Use `var x Type` when you want to utilize the zero-value (ready to use, conveying it's empty). Use `x := value` when explicitly initializing.
+* **Fallback (Go 1.22+):** Use `cmp.Or(val1, val2, fallback)` for first non-zero fallback. Never chain `if x == ""` / `if x == 0`. All args evaluate eagerly.
 * **String Concatenation:** Use `+` for simple strings. Use `fmt.Sprintf` when formatting is involved. Use `strings.Builder` if you are building a string dynamically in a loop (it prevents quadratic memory allocations).
+* **String Splitting:** Use `strings.CutLast` and `bytes.CutLast` for last-separator split. Never use `LastIndex` + manual slicing.
+* **Split Iterators (Go 1.24+):** Use `strings.SplitSeq` / `FieldsSeq` and `bytes.SplitSeq` / `FieldsSeq` when iterating only. Keeps `strings.Split` only when storing or indexing the slice.
+* **Collection Cloning:** Use `slices.Clone(s)` and `maps.Clone(m)` for shallow copies. They preserve `nil`. Use `maps.Copy(dst, src)` when `dst` is already allocated. Never use `append([]T(nil), s...)`, `make` + `copy`, or `for k, v := range` loops for shallow copies. Only write custom clone for deep copies with pointer fields.
+* **URL Cloning:** Use `u.Clone()` for `*url.URL` and `values.Clone()` for `url.Values`. Never use shallow dereference (`*u`) or manual map copy loops.
+* **Slice Sorting:** Use `slices` package, never legacy `sort` package. Use `slices.Sort(s)` for ordered types. Use `slices.SortFunc(s, func(a, b T) int { return cmp.Compare(...) })` or `slices.SortStableFunc` for custom order. Comparator returns `int`, never `bool`.
+* **Map Iterators (Go 1.23+):** Use `maps.Keys(m)` / `maps.Values(m)` for iteration without alloc. Use `slices.Collect(iter)` to slice, `slices.Sorted(iter)` to collect+sort. Never `make` + `for k := range` + `sort.Strings`.
 * **Generics (`any` & Type Parameters):** Use generics when you actually have algorithms that operate uniformly across multiple types. Do not use them prematurely to create domain-specific languages (DSLs) or bypass static typing where interfaces would suffice.
+* **Type Reflection (Go 1.22+):** Use `reflect.TypeFor[T]()` for `reflect.Type`. Never use `reflect.TypeOf((*T)(nil)).Elem()`.
+* **JSON (Go 1.25+):** Use `encoding/json/v2` for new code. Never migrate existing `encoding/json` files unless explicitly requested. v2 changes wire format by default: nil slice -> `[]`, nil map -> `{}`, duplicate keys rejected, invalid UTF-8 errors. For explicit migration, pass `jsonv1.DefaultOptionsV1()` first, verify with tests, then opt into v2 flags deliberately.
+* **JSON Tags (Go 1.24+):** Use `omitzero` for bool/number/struct/`time.Time` where zero = absent. Keep `omitempty` only for string/slice/map empty-collection semantics.
+* **UUID:** Use stdlib `uuid` for new standalone components. Keep `github.com/google/uuid` where `pgx`/`sqlc` database type integration is required.
 
 ## 8. Taste
 
