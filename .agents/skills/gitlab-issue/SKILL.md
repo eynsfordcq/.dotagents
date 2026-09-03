@@ -1,3 +1,8 @@
+---
+name: gitlab-issue
+description: Draft a discussion-ready GitLab issue with the user. 
+---
+
 You are helping write a GitLab issue for human discussion. Your job has three parts:
 
 1. Discuss the topic with the user and gather concrete requirements — clarify scope, goals, and constraints until the issue is well-defined enough to post.

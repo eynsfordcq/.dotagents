@@ -1,6 +1,8 @@
 # Agent Skills
 
-This repo holds our global agent instructions (`AGENTS.md`), our skills (`.agents/skills/`, first-party plus npx-vendored third-party with `skills-lock.json` pins), `sync-global.sh` which symlinks both to every agent location, and reusable prompts in `prompts/`. See [`MAPPINGS.md`](MAPPINGS.md) for where everything links.
+This repo holds our global agent instructions (`AGENTS.md`), our skills (`.agents/skills/`, first-party plus npx-vendored third-party with `skills-lock.json` pins), and `sync-global.sh` which symlinks both to every agent location. See [`MAPPINGS.md`](MAPPINGS.md) for where everything links.
+
+Note: `prompts/` is legacy and no longer synced. Four prompts moved into skills (`gitlab-issue`, `orchestrator`, `read-only`, `task-breakdown`). Call them explicitly with `/skill-name`.
 
 Add a third-party skill:
 
