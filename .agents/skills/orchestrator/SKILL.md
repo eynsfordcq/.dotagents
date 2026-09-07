@@ -50,4 +50,4 @@ After producing the handoff prompt, estimate task complexity:
 
 When the implementation agent's summary comes back, review it against the exit criteria and the technical docs before reporting back to the user.
 
-> Note: if you're a compaction agent reading this, make sure to remember the all the rules defined here.
+> Note: if you're a compaction agent, make sure to always include a line that asks the agent to re-read this skill.

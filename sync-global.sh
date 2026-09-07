@@ -3,9 +3,10 @@
 #
 # This repo is the single source of truth. Each target becomes a symlink:
 #   AGENTS.md -> ~/.agents/AGENTS.md -> agent paths (CLAUDE.md, AGENTS.md, GEMINI.md)
-#   .agents/skills/ -> ~/.agents/skills -> ~/.claude/skills
-# Agents that read ~/.agents natively (Codex, OpenCode, Pi, Copilot, and
-# Antigravity skills) need no extra link.
+#   .agents/skills/ -> ~/.agents/skills -> ~/.claude/skills, ~/.gemini/config/skills
+# Agents that read ~/.agents natively (Codex, OpenCode, Pi, Copilot)
+# need no extra link. Antigravity global skills live in
+# ~/.gemini/config/skills, so they need a link.
 #
 # Existing targets are removed first, so stale copies disappear.
 # .agents/skills/ holds first-party skills plus npx-installed third-party
@@ -46,7 +47,8 @@ link "$HUB_AGENTS" "$HOME/.config/opencode/AGENTS.md"
 link "$HUB_AGENTS" "$HOME/.pi/agent/AGENTS.md"
 link "$HUB_AGENTS" "$HOME/.gemini/GEMINI.md"
 
-# Global skills. Only Claude Code needs a link. The rest read the hub natively.
+# Global skills. Claude Code and Antigravity need links. The rest read the hub natively.
 link "$HUB_SKILLS" "$HOME/.claude/skills"
+link "$HUB_SKILLS" "$HOME/.gemini/config/skills"
 
 echo "Done."

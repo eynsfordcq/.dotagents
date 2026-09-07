@@ -21,11 +21,11 @@ Repository (Source of Truth)
 │                                       └──> (GitHub Copilot reads ~/.agents/AGENTS.md)
 │
 └── .agents/skills/ ──> ~/.agents/skills ──┬──> ~/.claude/skills
+                                        ├──> ~/.gemini/config/skills (Antigravity)
                                         ├──> (Codex reads ~/.agents/skills)
                                         ├──> (OpenCode reads ~/.agents/skills)
                                         ├──> (Pi reads ~/.agents/skills)
-                                        ├──> (GitHub Copilot reads ~/.agents/skills)
-                                        └──> (Antigravity reads ~/.agents/skills)
+                                        └──> (GitHub Copilot reads ~/.agents/skills)
 ```
 
 ---
@@ -39,7 +39,7 @@ Repository (Source of Truth)
 | **OpenCode** | `~/.agents/skills` (native) | `~/.config/opencode/AGENTS.md` (symlink) | `~/.config/opencode/opencode.json` |
 | **Pi** | `~/.agents/skills` (native) | `~/.pi/agent/AGENTS.md` (symlink) | `~/.config/mcp/mcp.json` |
 | **GitHub Copilot** | `~/.agents/skills` (native) | `~/.agents/AGENTS.md` (native) | `~/.config/github-copilot/mcp.json` |
-| **Antigravity** | `~/.agents/skills` (native) | `~/.gemini/GEMINI.md` (symlink) | `~/.gemini/antigravity/mcp/` |
+| **Antigravity** | `~/.gemini/config/skills` (symlink) | `~/.gemini/GEMINI.md` (symlink) | `~/.gemini/antigravity/mcp/` |
 
 ---
 

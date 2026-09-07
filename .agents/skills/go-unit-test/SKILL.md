@@ -98,9 +98,9 @@ Rules:
 - Do **not** introduce a shared test helper package (e.g. `internal/testutil`, `testdata/helpers`) unless there is a clear, repeated need that cannot live in the relevant `*_test.go` file. Prefer avoiding it.
 - Avoid a central `tests/` folder for unit tests. Use `/test` or `/e2e` only for integration/system tests.
 
-## Prefer Table-Driven Tests
+## Always Use Table-Driven Tests
 
-Prefer table-driven tests to group similar scenarios together. Use a single `Test…` with `t.Run` cases instead of many near-duplicate test functions.
+Always group tests of the same category together in one table-driven test. One behavior gets one `Test…` function with multiple `t.Run` cases. Do not write many near-duplicate `Test…` functions for the same function, method, or behavior.
 
 Name the outer test and each case with **Given-When-Then** intent (case `name` can be the Given/When/Then phrase or a short equivalent that still reads as scenario → outcome).
 
@@ -154,7 +154,7 @@ func TestGivenNumbersWhenDivideThenReturnsQuotientOrError(t *testing.T) {
 }
 ```
 
-Standalone (non-table) tests are fine when the setup is unique. Still use Given-When-Then naming and structure:
+A standalone (non-table) test is allowed only when a behavior has exactly one scenario. When a second scenario appears, convert the test to a table-driven test. Still use Given-When-Then naming and structure:
 
 ```go
 func TestGivenMissingUserWhenGetNameThenReturnsGuest(t *testing.T) {
@@ -262,7 +262,7 @@ func FuzzParse(f *testing.F) {
 - Testing private fields.
 - External test packages (`package foo_test`) for unit tests — keep the same package as the code under test.
 - Shared test-helper packages when helpers could live in the relevant `*_test.go` file.
-- Near-duplicate test functions that should be one table-driven test.
+- Multiple `Test…` functions for the same function, method, or behavior instead of one table-driven test.
 - Vague names (`TestDivide`, `Test1`) instead of Given-When-Then.
 
 ## Quick Command Cheat Sheet
