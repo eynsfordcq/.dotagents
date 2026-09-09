@@ -130,6 +130,7 @@ We rely on the standard `testing` package.
 * **Type Reflection (Go 1.22+):** Use `reflect.TypeFor[T]()` for `reflect.Type`. Never use `reflect.TypeOf((*T)(nil)).Elem()`.
 * **JSON (Go 1.25+):** Use `encoding/json/v2` for new code. Never migrate existing `encoding/json` files unless explicitly requested. v2 changes wire format by default: nil slice -> `[]`, nil map -> `{}`, duplicate keys rejected, invalid UTF-8 errors. For explicit migration, pass `jsonv1.DefaultOptionsV1()` first, verify with tests, then opt into v2 flags deliberately.
 * **JSON Tags (Go 1.24+):** Use `omitzero` for bool/number/struct/`time.Time` where zero = absent. Keep `omitempty` only for string/slice/map empty-collection semantics.
+* **Raw JSON (Go 1.27+):** Use `jsontext.Value` (= `json.RawMessage`). Use its built-ins: `Kind`, `IsValid`, `Clone`, `Compact`, `Indent`, `Format`, `Canonicalize`, `String`. Do not hand-roll them.
 * **UUID:** Use stdlib `uuid` for new standalone components. Keep `github.com/google/uuid` where `pgx`/`sqlc` database type integration is required.
 
 ## 8. Taste
