@@ -12,7 +12,6 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 const KEY = "response-stats";
-const PLACEHOLDER = "- tok/s · TTFT -s · TOT -s";
 // The footer collapses repeated ASCII spaces, so values are padded with
 // NBSP (U+00A0), which renders as a blank cell and survives sanitizing.
 const PAD = "\u00A0";
@@ -25,11 +24,10 @@ export default function (pi: ExtensionAPI) {
 	let messageStartedAt: number | undefined;
 	let firstTokenAt: number | undefined;
 
-	pi.on("message_start", (event, ctx) => {
+	pi.on("message_start", (event) => {
 		if (event.message.role !== "assistant") return;
 		messageStartedAt = Date.now();
 		firstTokenAt = undefined;
-		ctx.ui.setStatus(KEY, ctx.ui.theme.fg("dim", PLACEHOLDER));
 	});
 
 	pi.on("message_update", (event) => {
@@ -48,17 +46,16 @@ export default function (pi: ExtensionAPI) {
 		if (event.message.role !== "assistant") return;
 
 		const now = Date.now();
-		const placeholder = ctx.ui.theme.fg("dim", PLACEHOLDER);
 		const output = event.message.usage.output;
 		if (messageStartedAt === undefined || output <= 0) {
-			ctx.ui.setStatus(KEY, placeholder);
+			ctx.ui.setStatus(KEY, undefined);
 			return;
 		}
 
 		const generationStart = firstTokenAt ?? messageStartedAt;
 		const seconds = (now - generationStart) / 1000;
 		if (seconds <= 0) {
-			ctx.ui.setStatus(KEY, placeholder);
+			ctx.ui.setStatus(KEY, undefined);
 			return;
 		}
 
