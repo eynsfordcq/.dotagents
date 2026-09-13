@@ -139,3 +139,20 @@ Personal preferences, not hard standards. Prefer them when they do not fight a c
 
 * **Import aliases:** Avoid import aliases unless there is a real name collision. Rename the colliding local instead of aliasing the import.
 * **Error message truth:** Error messages must be true in every case that can produce them. Do not write a message that only fits some call paths.
+* **Enum prefix:** Prefix enum-like constants with the category name, like `http.MethodGet`. Use `ModeDirect`, not `Direct`.
+* **Down-to-earth comments:** Long function: list steps in order. Short function: one structured sentence.
+
+```go
+// Long: numbered steps.
+// Authenticate prepares a session:
+// 1. Resolves endpoint, checks enabled.
+// 2. Acquires capacity (protects DB from unauthenticated floods).
+// 3. Verifies API key.
+// Caller must call release when done.
+
+// Short: structured sentences.
+// Authenticate validates the endpoint, reserves capacity, and verifies the key.
+// Caller must call release when done.
+```
+* **Logical blank lines:** Put a blank line between logical steps. Never cram everything together.
+* **Multi-line when crowded:** Struct with 3+ fields: one field per line. Deeply nested params or long `if` with many `&&`/`||`: split per condition.
