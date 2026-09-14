@@ -1,6 +1,6 @@
 ---
 name: python-coding-practice
-description: Python coding standards for imports, exceptions, type annotations, naming, truth testing, strings, and resource management. Use when writing or reviewing Python code, or when org-specific Python style rules are needed.
+description: Apply Python coding conventions when writing or reviewing Python code.
 metadata:
   categories:
     - coding-standards

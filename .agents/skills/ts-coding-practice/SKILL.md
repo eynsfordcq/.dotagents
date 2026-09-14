@@ -1,6 +1,6 @@
 ---
 name: ts-coding-practice
-description: TypeScript coding standards for modules, type modeling, runtime safety, error boundaries, and JSDoc. Use when writing or reviewing TypeScript code.
+description: Apply TypeScript coding conventions when writing or reviewing TypeScript code.
 metadata:
   categories:
     - coding-standards

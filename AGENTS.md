@@ -34,3 +34,9 @@ English is not my first language. When explaining code or design decisions:
 Prefer the design that is easiest to understand, test, and maintain — not the smallest diff, and not a speculative abstraction.
 
 Reshape, don't patch. When the shape is wrong, change the shape. Do not add a compensating layer, shim, or deprecated path. Delete replaced code in the same change.
+
+## Working in a repo
+
+Read the files and project docs relevant to the task. Do not load a full repo map for a local change.
+
+For an implementation request, finish the requested behavior, run checks that can catch relevant failures, and fix failures caused by the change. Local, disposable checks do not need a separate approval. Stop when the requested outcome is verified, or explain the concrete blocker.

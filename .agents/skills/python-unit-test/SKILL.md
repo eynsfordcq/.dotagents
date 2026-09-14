@@ -1,6 +1,6 @@
 ---
 name: python-unit-test
-description: Python-specific unit testing standards using pytest, dependency isolation, and deterministic test structure. Use when writing or reviewing Python tests.
+description: Write or review Python unit tests using pytest and deterministic isolation.
 metadata:
   categories:
     - testing

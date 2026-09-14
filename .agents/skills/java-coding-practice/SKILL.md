@@ -1,6 +1,6 @@
 ---
 name: java-coding-practice
-description: Java coding standards for class organization, naming semantics, exceptions, Javadoc, and programming practices. Use when writing or reviewing Java code; load the Spring Boot addendum for Spring Boot services.
+description: Apply Java coding conventions when writing or reviewing Java code.
 metadata:
   categories:
     - coding-standards

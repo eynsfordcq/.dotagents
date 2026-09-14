@@ -1,6 +1,6 @@
 ---
 name: mermaid-diagrams
-description: Use this skill when generating MermaidJS diagrams (Flowchart, Sequence, Class, ERD).
+description: Create or edit Mermaid flowcharts, sequence, class, and ER diagrams.
 metadata:
   categories:
     - documentation

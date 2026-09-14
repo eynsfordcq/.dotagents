@@ -1,6 +1,6 @@
 ---
 name: azure-pipelines
-description: Practical guidance for designing, reviewing, debugging, and generating client-appropriate Azure DevOps YAML pipelines. Use when working on azure-pipelines.yml, stages/jobs/steps, templates, parameters, expressions, variables/groups, resources, approvals/checks, triggers, deployment jobs, artifacts, service connections, or Azure Pipelines migration from Classic.
+description: Design, debug, or review Azure Pipelines YAML and Classic-to-YAML migrations.
 metadata:
   source:
     - https://learn.microsoft.com/en-us/azure/devops/pipelines/?view=azure-devops

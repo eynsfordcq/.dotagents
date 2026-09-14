@@ -1,6 +1,6 @@
 ---
 name: gitlab-issue
-description: Draft a discussion-ready GitLab issue with the user. 
+description: Draft a GitLab issue for discussion and decision-making.
 ---
 
 You are helping write a GitLab issue for human discussion. Your job has three parts:

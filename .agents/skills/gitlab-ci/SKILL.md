@@ -1,6 +1,6 @@
 ---
 name: gitlab-ci
-description: Practical guidance for designing, reviewing, debugging, and generating GitLab CI/CD pipelines for self-managed GitLab, especially GitLab Free with self-managed Docker runners and Docker-in-Docker where needed. Use when working on .gitlab-ci.yml, runner-aware pipeline design, rules/workflow, DAG needs, artifacts/cache, Docker image builds, releases, environments, triggers, or downstream pipelines.
+description: Design, debug, or review GitLab CI/CD pipelines and runner behavior.
 metadata:
    source:
       - https://docs.gitlab.com/ci/

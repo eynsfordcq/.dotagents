@@ -1,6 +1,6 @@
 ---
 name: go-unit-test
-description: Go-specific unit testing standards for Given-When-Then naming, table-driven tests colocated as file_test.go in the same package, fakes, context handling, and fast deterministic suites. Use when writing or reviewing Go tests.
+description: Write or review Go unit tests with deterministic, idiomatic test structure.
 metadata:
   categories:
     - testing

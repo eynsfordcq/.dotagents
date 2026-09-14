@@ -1,6 +1,6 @@
 ---
 name: code-review
-description: Performs structured code reviews for any language or framework. Use when a user asks to review, critique, audit, or give feedback on code — including PRs, diffs, functions, modules, or full files. Covers correctness, security, performance, testing, maintainability, and organization-specific style rules.
+description: Review code, diffs, or pull requests for concrete defects and maintainability risks.
 metadata:
   categories: 
     - code-review 
@@ -15,8 +15,8 @@ metadata:
 ## Review Workflow
 
 1. **Read the full code/diff** before commenting — avoid piecemeal reactions.
-2. **Identify the language(s)** and load language-specific skills if available (see [Language-Specific Skills](#language-specific-skills) below).
-3. **Work through the checklist** below, covering all changed code.
+2. **Identify the language(s)** and load a language-specific skill only when its conventions matter to this review.
+3. **Check the relevant risks** below, based on the changed behavior.
 4. **Write structured feedback** grouped by severity using the output format below.
 
 ## Review Mindset
@@ -95,7 +95,7 @@ Work through each area systematically. Not every area will be relevant to every 
 
 ## Language-Specific Skills
 
-After identifying the language(s) under review, look for and apply these skills when available:
+Use a matching skill only when the review needs that project-specific guidance:
 
 | Kind | Skill name pattern | Use for |
 |---|---|---|
@@ -112,7 +112,7 @@ For org-specific style rules, apply the relevant `<language>-coding-practice` sk
 
 ## Output Format
 
-Structure all reviews as:
+Use this structure when it helps the author act on the findings:
 
 ```
 ## Summary
@@ -128,5 +128,5 @@ Structure all reviews as:
 [numbered list, or "None"]
 
 ## What's Good
-[briefly acknowledge well-done aspects — always include this]
+[briefly acknowledge a concrete strength when useful]
 ```

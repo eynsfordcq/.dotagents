@@ -23,4 +23,6 @@ Update all skills from the lockfile:
 npx skills update
 ```
 
+`design-taste-frontend` has local instruction edits. An upstream update can replace them. Review its diff before accepting an update.
+
 Commit the changed skill directories and `skills-lock.json`.

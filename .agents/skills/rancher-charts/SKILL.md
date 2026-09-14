@@ -1,6 +1,6 @@
 ---
 name: rancher-charts
-description: Use this skill when creating rancher charts.
+description: Create or update Rancher Helm charts and Rancher-specific chart metadata.
 metadata:
   categories:
     - helm
