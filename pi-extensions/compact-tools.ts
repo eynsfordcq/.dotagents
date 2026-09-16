@@ -1,31 +1,31 @@
 /**
- * compact-tools: compact tool calls and completed model thinking.
+ * compact-tools: one row per tool call, short view of thinking.
  *
- * The chat renders like this while streaming:
+ * The chat looks like this while running:
  *
  *   → grep -n "class .*Editor" ~/.pi/... 1.2s
  *   → read ~/src/app.ts <1s
  *
- * Thinking streams through a five-row rolling window. When it ends, the
- * extension replaces it with an expandable summary:
+ * Thinking shows the last five rows while it streams. When it ends, it
+ * becomes one line you can click to expand:
  *
  *   ✦ Thought for 3.4s.
  *
- * The full output is still reachable. Press ctrl+o to expand or collapse all
- * tools, or click a single tool row to toggle just that one. Clicking a
- * finished-thinking summary shows its full text.
+ * Nothing is hidden for good. Press ctrl+o to expand or collapse all tools.
+ * Click one tool row to toggle just that tool. Click a finished-thinking
+ * line to read the full text.
  *
- * Three prototype patches carry the whole extension:
- *   ToolExecutionComponent.render             -> one row while collapsed
- *   ToolExecutionComponent.handleMouse        -> click to toggle one tool
- *   AssistantMessageComponent.updateContent  -> rolling thinking or final summary
+ * How it works: three small patches on pi's own components:
+ *   ToolExecutionComponent.render            -> one row while collapsed
+ *   ToolExecutionComponent.handleMouse       -> click toggles one tool
+ *   AssistantMessageComponent.updateContent -> rolling window or summary
  *
- * Both patches reuse the original method stored on a symbol, so /reload does
- * not wrap them twice. Restarting pi is still the safe way to pick up edits.
+ * Each patch saves the original method on a symbol, so /reload does not
+ * wrap it twice. Restarting pi is still the safest way to pick up edits.
  *
- * Note: this intentionally overrides the built-in ctrl+T thinking toggle.
- * Active thinking stays visible in the rolling window. Finished thinking
- * collapses; click its summary to read the full text.
+ * Note: this takes over the built-in ctrl+T thinking toggle. Thinking that
+ * is still running stays visible in the small window. Finished thinking
+ * collapses; click its line to read the full text.
  *
  * Install with ./sync-extensions.sh.
  */
@@ -48,11 +48,11 @@ import {
 // =============================================================================
 // Tuning
 // =============================================================================
-/** Max characters of one tool argument shown on the row. */
+/** How many characters of one tool argument fit on the row. */
 const ARG_MAX_CHARS = 90;
-/** Long paths keep only their filename so the useful part stays visible. */
+/** Long paths show only their file name, so the useful part stays visible. */
 const PATH_MAX_CHARS = 48;
-/** Maximum rendered terminal rows shown while thinking streams. */
+/** How many terminal rows of thinking stay visible while it streams. */
 const THINKING_WINDOW_ROWS = 5;
 const SPINNER = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 const SPINNER_MS = 100;
@@ -70,8 +70,8 @@ interface ThinkingState {
 	endedAt?: number;
 }
 
-// Assistant messages have no id. Their creation timestamp is stable across
-// stream updates and is enough to associate lifecycle events with components.
+// Assistant messages have no id. We use their timestamp as the key instead.
+// It stays the same across stream updates, so it links events to components.
 const thinkingStates = new Map<number, ThinkingState>();
 const assistantComponents = new Map<number, any>();
 
@@ -97,14 +97,16 @@ function compactPath(path: string): string {
 	const home = process.env.HOME;
 	const shortened =
 		home && path.startsWith(home) ? `~${path.slice(home.length)}` : path;
-	return shortened.length > PATH_MAX_CHARS ? `.../${basename(path)}` : shortened;
+	return shortened.length > PATH_MAX_CHARS
+		? `.../${basename(path)}`
+		: shortened;
 }
 
 function named(name: string, payload: string): string {
 	return `${fg("toolTitle", bold(name))} ${fg("dim", payload)}`;
 }
 
-/** The styled tool name and its most useful argument. */
+/** Pick the one argument that tells you what the tool is doing. */
 function toolPayload(toolName: string, args: any): string {
 	const a = args ?? {};
 	switch (toolName) {
@@ -123,11 +125,9 @@ function toolPayload(toolName: string, args: any): string {
 		case "ls":
 			return named(toolName, compactPath(String(a.path ?? ".")));
 		default: {
-			const fallback = a.path ?? a.query ?? a.description ?? a.name ?? a.url;
-			const payload = a.path
-				? compactPath(String(a.path))
-				: oneLine(fallback ?? "…");
-			return named(toolName, payload);
+			if (a.path) return named(toolName, compactPath(String(a.path)));
+			const fallback = a.query ?? a.description ?? a.name ?? a.url ?? "…";
+			return named(toolName, oneLine(fallback));
 		}
 	}
 }
@@ -141,24 +141,23 @@ function toolStatus(self: any): "pending" | "success" | "error" {
 function toolDuration(self: any): string {
 	const start = toolStartedAt.get(self.toolCallId);
 	if (start === undefined) return "";
-	const end = self.result
-		? (toolEndedAt.get(self.toolCallId) ?? Date.now())
-		: Date.now();
+	const end = toolEndedAt.get(self.toolCallId) ?? Date.now();
 	const ms = Math.max(0, end - start);
 	return ms < 1000 ? "<1s" : `${(ms / 1000).toFixed(1)}s`;
 }
 
-/** The single collapsed row for one tool call. */
+// One collapsed tool call: icon + name + best argument + time.
 function toolRow(self: any, width: number): string {
 	const status = toolStatus(self);
-	const color =
-		status === "pending" ? "accent" : status === "error" ? "error" : "success";
-	const icon =
-		status === "pending"
-			? SPINNER[Math.floor(Date.now() / SPINNER_MS) % SPINNER.length]!
-			: status === "error"
-				? "✗"
-				: "→";
+	let color = "success";
+	let icon = "→";
+	if (status === "error") {
+		color = "error";
+		icon = "✗";
+	} else if (status === "pending") {
+		color = "accent";
+		icon = SPINNER[Math.floor(Date.now() / SPINNER_MS) % SPINNER.length] ?? "⠋";
+	}
 
 	let line = `${fg(color, icon)} ${toolPayload(self.toolName, self.args)}`;
 	const duration = toolDuration(self);
@@ -207,8 +206,7 @@ class RollingThinkingWindow implements Component {
 
 	render(width: number): string[] {
 		const rows = this.child.render(width);
-		if (rows.length <= THINKING_WINDOW_ROWS) return rows;
-
+		// slice(-n) keeps everything when there are fewer than n rows.
 		return rows.slice(-THINKING_WINDOW_ROWS);
 	}
 
@@ -221,35 +219,30 @@ function installRollingThinkingWindow(component: any): void {
 	const children = component.contentContainer?.children;
 	if (!Array.isArray(children)) return;
 
+	// The thinking text sits inside a clickable area. Wrap it so only the
+	// last few rows show while thinking is still streaming.
 	const region = children.findLast(
-		(child: any) => child instanceof MouseRegion && child.child instanceof Markdown,
+		(child: any) =>
+			child instanceof MouseRegion && child.child instanceof Markdown,
 	);
 	if (region) region.child = new RollingThinkingWindow(region.child);
 }
 
-function visibleContentPrecedesToolRows(message: any): boolean {
-	if (!Array.isArray(message?.content)) return false;
-
-	let lastVisibleIndex = -1;
-	let lastToolIndex = -1;
-	for (let index = 0; index < message.content.length; index++) {
-		const part = message.content[index];
-		if (part?.type === "toolCall") lastToolIndex = index;
-		if (
+// Text or thinking sits above the tool rows. Then we add one blank line,
+// so the tools do not stick to the text.
+function hasTextBeforeTools(message: any): boolean {
+	const parts = message?.content;
+	if (!Array.isArray(parts)) return false;
+	const isVisible = (part: any): boolean =>
+		Boolean(
 			(part?.type === "text" && String(part.text ?? "").trim()) ||
-			(part?.type === "thinking" && String(part.thinking ?? "").trim())
-		) {
-			lastVisibleIndex = index;
-		}
-	}
-	return lastVisibleIndex >= 0 && lastToolIndex > lastVisibleIndex;
-}
-
-function createThinkingState(
-	phase: ThinkingState["phase"],
-	startedAt?: number,
-): ThinkingState {
-	return { phase, startedAt };
+				(part?.type === "thinking" && String(part.thinking ?? "").trim()),
+		);
+	const lastVisible = parts.findLastIndex(isVisible);
+	const lastTool = parts.findLastIndex(
+		(part: any): boolean => part?.type === "toolCall",
+	);
+	return lastVisible >= 0 && lastTool > lastVisible;
 }
 
 function updateThinkingLifecycle(message: any, streamEvent: any): void {
@@ -259,26 +252,28 @@ function updateThinkingLifecycle(message: any, streamEvent: any): void {
 	const type = String(streamEvent?.type ?? "");
 	if (!type.startsWith("thinking_") && type !== "done") return;
 
-	let state = thinkingStates.get(timestamp);
 	if (type === "thinking_start") {
-		state = createThinkingState("streaming", Date.now());
-		thinkingStates.set(timestamp, state);
-	} else if (state && type === "thinking_end") {
-		state.phase = "finished";
-		state.endedAt = Date.now();
+		thinkingStates.set(timestamp, {
+			phase: "streaming",
+			startedAt: Date.now(),
+		});
 	} else if (type === "thinking_end") {
-		state = createThinkingState("finished");
+		const state: ThinkingState = thinkingStates.get(timestamp) ?? {
+			phase: "finished",
+		};
+		state.phase = "finished";
 		state.endedAt = Date.now();
 		thinkingStates.set(timestamp, state);
 	}
 
-	// Interactive mode may update the component before extension handlers run.
-	// Rebuild it after the lifecycle state changes so this event still redraws
-	// with the correct visible-or-summary form.
+	// Pi sometimes redraws the message before our handler runs. Redraw again
+	// now that the state is fresh, so the message shows the right form.
 	assistantComponents.get(timestamp)?.invalidate?.();
 }
 
-function thinkingStateFor(
+// Restored messages never stream, so they have no start/end events. When such
+// a message already holds thinking text, treat it as finished.
+function getThinkingState(
 	message: any,
 	isStreaming: boolean,
 ): ThinkingState | undefined {
@@ -287,10 +282,29 @@ function thinkingStateFor(
 
 	let state = thinkingStates.get(timestamp);
 	if (!state && !isStreaming && fullThinkingText(message)) {
-		state = createThinkingState("finished");
+		state = { phase: "finished" };
 		thinkingStates.set(timestamp, state);
 	}
 	return state;
+}
+
+function isThinkingActive(
+	state: ThinkingState | undefined,
+	message: any,
+	streaming: boolean,
+): boolean {
+	if (state) return state.phase === "streaming";
+	return streaming && Boolean(fullThinkingText(message));
+}
+
+function showThinkingSummary(component: any, state: ThinkingState): void {
+	component.hideThinkingBlock = true;
+	component.hiddenThinkingLabel = finishedThinkingLabel(state);
+}
+
+function showLiveThinking(component: any): void {
+	component.hideThinkingBlock = false;
+	component.thinkingVisibilityOverrides.clear();
 }
 
 // =============================================================================
@@ -302,7 +316,9 @@ const ASSISTANT_UPDATE_ORIGINAL = Symbol.for(
 	"compact-tools.assistant-update-original",
 );
 
-function installPatches(): void {
+// `any` below means "pi's own component shape". Pi types these internals
+// loosely, so we use what is there and touch as little as possible.
+function patchToolRender(): void {
 	const toolProto = ToolExecutionComponent.prototype as any;
 	const baseToolRender = toolProto[TOOL_RENDER_ORIGINAL] ?? toolProto.render;
 	toolProto.render = function (this: any, width: number): string[] {
@@ -312,13 +328,16 @@ function installPatches(): void {
 		return [toolRow(this, width)];
 	};
 	toolProto[TOOL_RENDER_ORIGINAL] = baseToolRender;
+}
 
+function patchToolClick(): void {
+	const toolProto = ToolExecutionComponent.prototype as any;
 	const baseToolHandleMouse =
 		toolProto[TOOL_MOUSE_ORIGINAL] ?? toolProto.handleMouse;
 	toolProto.handleMouse = function (this: any, event: any) {
-		// A collapsed row renders one line and registers no click region, so
-		// the built-in expand-on-click never fires. Expand here instead.
-		// Collapsing an expanded tool still goes through the original.
+		// A collapsed row is one plain line with no click area, so pi's own
+		// click-to-expand never runs. Expand here instead. Shrinking a tool
+		// back still goes through the original handler.
 		if (!this.expanded && event?.type === "click" && event.button === "left") {
 			this.setExpanded(true);
 			return { handled: true };
@@ -326,7 +345,9 @@ function installPatches(): void {
 		return baseToolHandleMouse.call(this, event);
 	};
 	toolProto[TOOL_MOUSE_ORIGINAL] = baseToolHandleMouse;
+}
 
+function patchAssistantUpdate(): void {
 	const assistantProto = AssistantMessageComponent.prototype as any;
 	const baseUpdateContent =
 		assistantProto[ASSISTANT_UPDATE_ORIGINAL] ?? assistantProto.updateContent;
@@ -339,24 +360,26 @@ function installPatches(): void {
 		const timestamp = assistantTimestamp(message);
 		if (timestamp !== undefined) assistantComponents.set(timestamp, this);
 
-		const state = thinkingStateFor(message, streaming);
-		const activeThinking =
-			state?.phase === "streaming" ||
-			(!state && streaming && Boolean(fullThinkingText(message)));
+		const state = getThinkingState(message, streaming);
+		const thinkingLive = isThinkingActive(state, message, streaming);
 		if (state?.phase === "finished") {
-			this.hideThinkingBlock = true;
-			this.hiddenThinkingLabel = finishedThinkingLabel(state);
-		} else if (activeThinking) {
-			this.hideThinkingBlock = false;
-			this.thinkingVisibilityOverrides.clear();
+			showThinkingSummary(this, state);
+		} else if (thinkingLive) {
+			showLiveThinking(this);
 		}
 		baseUpdateContent.call(this, message, isStreaming);
-		if (activeThinking) installRollingThinkingWindow(this);
-		if (visibleContentPrecedesToolRows(message)) {
+		if (thinkingLive) installRollingThinkingWindow(this);
+		if (hasTextBeforeTools(message)) {
 			this.contentContainer.addChild(new Spacer(1));
 		}
 	};
 	assistantProto[ASSISTANT_UPDATE_ORIGINAL] = baseUpdateContent;
+}
+
+function installPatches(): void {
+	patchToolRender();
+	patchToolClick();
+	patchAssistantUpdate();
 }
 
 // =============================================================================
