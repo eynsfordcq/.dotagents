@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { dirname } from "node:path";
 import {
 	type ExtensionAPI,
+	type ExtensionUIContext,
 	getMarkdownTheme,
 	parseSkillBlock,
 	SkillInvocationMessageComponent,
@@ -93,17 +94,15 @@ interface InvocationPlan {
 }
 
 /** Factory that builds the composer editor. Other extensions can replace it. */
-type EditorFactory = (
-	tui: never,
-	theme: never,
-	keybindings: never,
-) => EditorComponent;
+type EditorFactory = NonNullable<
+	ReturnType<ExtensionUIContext["getEditorComponent"]>
+>;
 
 /** Smallest part of the UI we need: read and replace the editor factory. */
-interface EditorHostUI {
-	getEditorComponent?: unknown;
-	setEditorComponent: (factory: EditorFactory) => void;
-}
+type EditorHostUI = Pick<
+	ExtensionUIContext,
+	"getEditorComponent" | "setEditorComponent"
+>;
 
 /**
  * List every skill pi knows about, by name.
@@ -636,7 +635,7 @@ function tryAutoOpenMidlinePicker(editor: EditorComponent): void {
  * extensions (for example Zentui) keep working underneath.
  */
 function wrapEditorFactory(base: EditorFactory): EditorFactory {
-	function buildEditor(tui: never, theme: never, keybindings: never) {
+	const buildEditor: EditorFactory = (tui, theme, keybindings) => {
 		const editor = base(tui, theme, keybindings);
 
 		// Hook the instance, not the prototype. Some editors set
@@ -652,7 +651,7 @@ function wrapEditorFactory(base: EditorFactory): EditorFactory {
 		};
 
 		return editor;
-	}
+	};
 
 	return buildEditor;
 }

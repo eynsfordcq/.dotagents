@@ -24,3 +24,11 @@ npx skills update
 ```
 
 Commit the changed skill directories and `skills-lock.json`.
+
+Pi packages (`pi-packages.txt`) are the global pi extension list. Install them:
+
+```bash
+./install-pi-packages.sh
+```
+
+Add or remove a package with `pi install` / `pi remove`, then update `pi-packages.txt` to match.

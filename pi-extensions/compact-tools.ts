@@ -57,6 +57,23 @@ const THINKING_WINDOW_ROWS = 5;
 const SPINNER = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 const SPINNER_MS = 100;
 
+/** Icons. Change these to taste. */
+const SYMBOL = {
+	/** Tool finished without error. */
+	toolDone: "→",
+	/** Tool failed. */
+	toolError: "✗",
+	/** Shown when a tool has no result yet and SPINNER is empty. */
+	toolPending: "⠋",
+	/** Start of the collapsed thinking line. */
+	// thinking: "✦",
+	thinking: "⁂",
+	/** Value is missing. */
+	missing: "…",
+	/** Text was cut short to fit. */
+	elided: "…",
+};
+
 // =============================================================================
 // State
 // =============================================================================
@@ -90,7 +107,7 @@ function oneLine(value: unknown, max = ARG_MAX_CHARS): string {
 	const text = String(value ?? "")
 		.replace(/\s+/g, " ")
 		.trim();
-	return text.length > max ? `${text.slice(0, max - 1)}…` : text;
+	return text.length > max ? `${text.slice(0, max - 1)}${SYMBOL.elided}` : text;
 }
 
 function compactPath(path: string): string {
@@ -115,7 +132,7 @@ function toolPayload(toolName: string, args: any): string {
 		case "read":
 		case "write":
 		case "edit":
-			return named(toolName, compactPath(String(a.path ?? "…")));
+			return named(toolName, compactPath(String(a.path ?? SYMBOL.missing)));
 		case "grep":
 		case "find":
 			return named(
@@ -126,7 +143,8 @@ function toolPayload(toolName: string, args: any): string {
 			return named(toolName, compactPath(String(a.path ?? ".")));
 		default: {
 			if (a.path) return named(toolName, compactPath(String(a.path)));
-			const fallback = a.query ?? a.description ?? a.name ?? a.url ?? "…";
+			const fallback =
+				a.query ?? a.description ?? a.name ?? a.url ?? SYMBOL.missing;
 			return named(toolName, oneLine(fallback));
 		}
 	}
@@ -149,20 +167,24 @@ function toolDuration(self: any): string {
 // One collapsed tool call: icon + name + best argument + time.
 function toolRow(self: any, width: number): string {
 	const status = toolStatus(self);
+	const pendingFrame =
+		SPINNER.length > 0
+			? SPINNER[Math.floor(Date.now() / SPINNER_MS) % SPINNER.length]!
+			: SYMBOL.toolPending;
 	let color = "success";
-	let icon = "→";
+	let icon = SYMBOL.toolDone;
 	if (status === "error") {
 		color = "error";
-		icon = "✗";
+		icon = SYMBOL.toolError;
 	} else if (status === "pending") {
 		color = "accent";
-		icon = SPINNER[Math.floor(Date.now() / SPINNER_MS) % SPINNER.length] ?? "⠋";
+		icon = pendingFrame;
 	}
 
 	let line = `${fg(color, icon)} ${toolPayload(self.toolName, self.args)}`;
 	const duration = toolDuration(self);
 	if (duration) line += ` ${fg("muted", duration)}`;
-	return truncateToWidth(line, Math.max(1, width), "…");
+	return truncateToWidth(line, Math.max(1, width), SYMBOL.elided);
 }
 
 // =============================================================================
@@ -194,7 +216,9 @@ function formatThinkingDuration(state: ThinkingState): string | undefined {
 
 function finishedThinkingLabel(state: ThinkingState): string {
 	const duration = formatThinkingDuration(state);
-	return duration ? `✦ Thought for ${duration}.` : "✦ Thought briefly.";
+	return duration
+		? `${SYMBOL.thinking} Thought for ${duration}.`
+		: `${SYMBOL.thinking} Thought briefly.`;
 }
 
 class RollingThinkingWindow implements Component {
@@ -219,13 +243,23 @@ function installRollingThinkingWindow(component: any): void {
 	const children = component.contentContainer?.children;
 	if (!Array.isArray(children)) return;
 
+	// MouseRegion has no public child accessor. This extension already patches
+	// pi's component internals, so keep the unsafe access at this boundary.
+	type MouseRegionInternals = { child: Component };
+	const getInternals = (region: MouseRegion): MouseRegionInternals =>
+		region as unknown as MouseRegionInternals;
+
 	// The thinking text sits inside a clickable area. Wrap it so only the
 	// last few rows show while thinking is still streaming.
 	const region = children.findLast(
 		(child: any) =>
-			child instanceof MouseRegion && child.child instanceof Markdown,
-	);
-	if (region) region.child = new RollingThinkingWindow(region.child);
+			child instanceof MouseRegion &&
+			getInternals(child).child instanceof Markdown,
+	) as MouseRegion | undefined;
+	if (!region) return;
+
+	const internals = getInternals(region);
+	internals.child = new RollingThinkingWindow(internals.child);
 }
 
 // Text or thinking sits above the tool rows. Then we add one blank line,
