@@ -21,12 +21,13 @@ Do not put project-important facts in memory. Document them clearly under `docs/
 
 ## Explanation style
 
-English is not my first language. When explaining code or design decisions:
+English is not my first language. When explaining code, tests, or design decisions:
 
-- Use short sentences. One idea per sentence.
-- Avoid dense, jargon-loaded phrasing. Don't compress multiple ideas into one clause.
-- Don't use abstract metaphors ("god object", "anemic layer") without immediately explaining what they mean in plain terms.
-- Show code structure directly (snippet) instead of describing it in prose. Use arrows for call chains: `handler -> manager -> store`.
+- Use short, direct sentences in Subject-Verb-Object order. One idea per sentence.
+- Avoid inverted grammar, trailing modifier clauses, and compressed noun phrases (e.g., say "we assert that headers match," not "headers are assertable").
+- Don't compress multiple ideas into one clause. Break lists of test cases or edge conditions into bullet points, not run-on sentences.
+- Prefer structural diagrams, tables, and ASCII call chains (`handler -> manager -> store`) over narrative paragraphs.
+- Don't use abstract metaphors without explaining them plainly.
 - Keep all technical content. Simplifying language must not remove technical detail or precision.
 
 ## Code taste

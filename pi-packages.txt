@@ -1,0 +1,11 @@
+npm:pi-web-access
+npm:pi-mcp-adapter
+npm:@narumitw/pi-btw
+npm:@juicesharp/rpiv-ask-user-question
+npm:@juicesharp/rpiv-todo
+npm:pi-context-view
+npm:@aliou/pi-guardrails
+npm:@tintinweb/pi-subagents
+npm:pi-local-stats
+npm:pi-commandcode-provider
+npm:pi-zentui
