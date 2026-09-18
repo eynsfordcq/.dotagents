@@ -15,27 +15,6 @@ metadata:
 
 > Non-formatter rules only. Formatting (indentation, line length, whitespace, blank lines) is handled by **Ruff/Black** — run it, don't discuss it.
 
-## Table of Contents
-
-- [Imports](#imports)
-- [Exceptions](#exceptions)
-- [Global State](#global-state)
-- [Functions and Classes](#functions-and-classes)
-- [Comprehensions and Generators](#comprehensions-and-generators)
-- [Iteration and Data Structures](#iteration-and-data-structures)
-- [Truth Testing](#truth-testing)
-- [Strings](#strings)
-- [Resource Management](#resource-management)
-- [Type Annotations](#type-annotations)
-- [Naming](#naming)
-- [Module Structure](#module-structure)
-- [Docstrings](#docstrings)
-- [Comments](#comments)
-- [Threading](#threading)
-- [Things to Avoid](#things-to-avoid)
-
----
-
 ## Imports
 
 **Use `import x` or `from x import y` — never import individual classes or functions directly from deep paths unless aliasing.**
@@ -363,7 +342,7 @@ For objects that don't support `with` natively, use `contextlib.closing()`.
 
 ## Type Annotations
 
-**Annotate all public APIs.** Internal helpers and short-lived private functions can be unannotated if the types are obvious, but anything exposed externally must be fully typed.
+**Annotate params and return on every function definition.** At minimum the `def` line must be fully typed.
 
 **Use `X | None` over `Optional[X]`.** The union syntax is cleaner and is the standard in Python 3.10+.
 
@@ -516,3 +495,27 @@ Always link to a ticket (gitlab issue). Never use a username alone as the contex
 - **`lambda` for anything longer than a simple expression.** Define a named function.
 - **`operator.mul` over `lambda x, y: x * y`** for common operations.
 - **Nested functions that exist only to hide module-level helpers.** Prefix with `_` at module level instead — it's still testable.
+
+---
+
+## Taste
+
+Personal preferences, not hard standards. Prefer them when they do not fight a clearer local convention.
+
+- **Logical blank lines:** Put a blank line between logical steps. Never cram everything together.
+- **Simple comprehensions only:** A comprehension is fine with a short expression and one simple condition. If the expression is long, the condition is compound, or you need nesting, use a plain loop. Readable beats short.
+- **Explicit over magic:** Prefer constructors with visible arguments over helpers that read env vars or global config implicitly. A reader must see the inputs at the call site.
+
+```python
+# Yes — all inputs visible at the call site
+ChatOpenAI(
+    model=...,
+    base_url=...,
+    api_key=...,
+    temperature=...,
+    timeout=...,
+)
+
+# No — model, key, and endpoint hide in env vars
+init_chat_model()
+```
