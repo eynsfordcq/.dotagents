@@ -1,7 +1,6 @@
 npm:pi-web-access
 npm:pi-mcp-adapter
 npm:@narumitw/pi-btw
-npm:@juicesharp/rpiv-todo
 npm:pi-context-view
 npm:@aliou/pi-guardrails
 npm:@tintinweb/pi-subagents
