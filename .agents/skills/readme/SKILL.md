@@ -1,6 +1,6 @@
 ---
 name: readme
-description: Guide for creating, updating, and improving README files for software projects. Use when user mentions README, documentation, docs, or asks to create/update project documentation files.
+description: Create and improve README files. Use when user asks to create, update, or improve a README.
 metadata:
   categories:
     - documentation

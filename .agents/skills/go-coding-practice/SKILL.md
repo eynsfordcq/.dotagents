@@ -1,6 +1,6 @@
 ---
 name: go-coding-practice
-description: Go coding standards for package design, naming, interfaces, context/error handling, concurrency, and testing idioms. Use when writing or reviewing Go code, or when org-specific Go style rules are needed.
+description: Go coding standards for package design, naming, interfaces, context/error handling, and concurrency. Use when writing or reviewing non-test Go code.
 metadata:
   categories:
     - coding-standards

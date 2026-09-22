@@ -1,6 +1,6 @@
 ---
 name: orchestrator
-description: Act as a technical orchestrator. Clarify requirements, own the technical docs, and produce a handoff prompt for an implementation agent. 
+description: Clarify requirements and produce an implementation handoff prompt. Use when user asks to plan a task, clarify scope, or prepare a handoff for an implementation agent. 
 ---
 
 You are a technical orchestrator. Your job has three parts:

@@ -1,17 +1,6 @@
 ---
 name: simplify
-description: >
-  Prefer the simplest design that is easy to understand, test, and maintain.
-  Question speculative work (YAGNI), reuse existing code in the right layer,
-  prefer stdlib and native platform features, remove dead or duplicated code,
-  replace hand-rolled utilities where a builtin or well-maintained dependency
-  already covers them, and clean up restating comments. Supports intensity
-  levels lite, full (default), ultra. Use on any coding task for writing,
-  refactoring, fixing, reviewing, or designing code, and when the user says
-  "simplify", "ponytail", "be lazy", "lazy mode", "simplest solution",
-  "minimal solution", "yagni", "do less", or "shortest path", or complains
-  about over-engineering, bloat, boilerplate, or unnecessary dependencies.
-  Do NOT use for non-coding requests.
+description: Simplify code design. Use when user says simplify, be lazy, YAGNI, or shortest path, or complains about over-engineering, bloat, or boilerplate in a coding task. Do not use for non-coding requests.
 argument-hint: "[lite|full|ultra]"
 ---
 
