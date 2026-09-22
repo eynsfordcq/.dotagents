@@ -1,25 +1,20 @@
+import type { ExtensionAPI, Theme } from "@earendil-works/pi-coding-agent";
 import {
-	type ExtensionAPI,
-	type Theme,
-} from "@earendil-works/pi-coding-agent";
-import {
+	type Component,
+	type Focusable,
 	Input,
 	Key,
 	Markdown,
 	type MarkdownTheme,
 	matchesKey,
-	truncateToWidth,
-	type Component,
-	type Focusable,
 	type TUI,
+	truncateToWidth,
 	visibleWidth,
 	wrapTextWithAnsi,
 } from "@earendil-works/pi-tui";
 import { type Static, Type } from "typebox";
 
-// =============================================================================
 // Tuning
-// =============================================================================
 const MAX_QUESTIONS = 4;
 const MIN_OPTIONS = 2;
 const MAX_OPTIONS = 4;
@@ -50,9 +45,7 @@ const PROMPT_GUIDELINES = [
 	`Use option previews for code, mockups, diagrams, or configuration that the user should inspect before deciding.`,
 ];
 
-// =============================================================================
 // Tool contract
-// =============================================================================
 const OptionSchema = Type.Object({
 	label: Type.String({
 		maxLength: MAX_LABEL_LENGTH,
@@ -63,7 +56,8 @@ const OptionSchema = Type.Object({
 	}),
 	preview: Type.Optional(
 		Type.String({
-			description: "Optional Markdown artifact that helps the user compare this choice, such as a code snippet or UI mockup.",
+			description:
+				"Optional Markdown artifact that helps the user compare this choice, such as a code snippet or UI mockup.",
 		}),
 	),
 });
@@ -116,10 +110,13 @@ type Row =
 	| { kind: "custom" }
 	| { kind: "next" };
 
-export function validateQuestions(params: AskUserQuestionParams): string | undefined {
+export function validateQuestions(
+	params: AskUserQuestionParams,
+): string | undefined {
 	const questions = new Set<string>();
 	for (const question of params.questions) {
-		if (questions.has(question.question)) return "Question text must be unique.";
+		if (questions.has(question.question))
+			return "Question text must be unique.";
 		questions.add(question.question);
 
 		const labels = new Set<string>();
@@ -164,9 +161,7 @@ export function buildToolText(result: QuestionnaireResult): string {
 	return `User answered the questions:\n${lines.join("\n")}\nContinue using these decisions.`;
 }
 
-// =============================================================================
 // Terminal questionnaire
-// =============================================================================
 class Questionnaire implements Component, Focusable {
 	private currentTab = 0;
 	private readonly tui: TUI;
@@ -216,7 +211,8 @@ class Questionnaire implements Component, Focusable {
 				placeholderStyle: (text) => theme.fg("dim", text),
 			});
 			input.onSubmit = (text) => {
-				if (params.questions[questionIndex].multiSelect) this.commitMultiSelect(questionIndex);
+				if (params.questions[questionIndex].multiSelect)
+					this.commitMultiSelect(questionIndex);
 				else this.submitCustomAnswer(questionIndex, text);
 			};
 			return input;
@@ -244,16 +240,26 @@ class Questionnaire implements Component, Focusable {
 
 		const hasSubmitTab = this.params.questions.length > 1;
 		const customFocused = this.isCustomInputFocused();
-		if (hasSubmitTab && (matchesKey(data, Key.tab) || (!customFocused && matchesKey(data, Key.right)))) {
-			this.currentTab = (this.currentTab + 1) % (this.params.questions.length + 1);
+		if (
+			hasSubmitTab &&
+			(matchesKey(data, Key.tab) ||
+				(!customFocused && matchesKey(data, Key.right)))
+		) {
+			this.currentTab =
+				(this.currentTab + 1) % (this.params.questions.length + 1);
 			this.status = "";
 			this.updateInputFocus();
 			this.refresh();
 			return;
 		}
-		if (hasSubmitTab && (matchesKey(data, Key.shift("tab")) || (!customFocused && matchesKey(data, Key.left)))) {
+		if (
+			hasSubmitTab &&
+			(matchesKey(data, Key.shift("tab")) ||
+				(!customFocused && matchesKey(data, Key.left)))
+		) {
 			this.currentTab =
-				(this.currentTab - 1 + this.params.questions.length + 1) % (this.params.questions.length + 1);
+				(this.currentTab - 1 + this.params.questions.length + 1) %
+				(this.params.questions.length + 1);
 			this.status = "";
 			this.updateInputFocus();
 			this.refresh();
@@ -268,14 +274,16 @@ class Questionnaire implements Component, Focusable {
 		const question = this.params.questions[this.currentTab];
 		const rows = rowsFor(question);
 		if (matchesKey(data, Key.up)) {
-			this.cursors[this.currentTab] = (this.cursors[this.currentTab] - 1 + rows.length) % rows.length;
+			this.cursors[this.currentTab] =
+				(this.cursors[this.currentTab] - 1 + rows.length) % rows.length;
 			this.status = "";
 			this.updateInputFocus();
 			this.refresh();
 			return;
 		}
 		if (matchesKey(data, Key.down)) {
-			this.cursors[this.currentTab] = (this.cursors[this.currentTab] + 1) % rows.length;
+			this.cursors[this.currentTab] =
+				(this.cursors[this.currentTab] + 1) % rows.length;
 			this.status = "";
 			this.updateInputFocus();
 			this.refresh();
@@ -288,7 +296,11 @@ class Questionnaire implements Component, Focusable {
 			this.refresh();
 			return;
 		}
-		if (matchesKey(data, Key.space) && question.multiSelect && row.kind === "option") {
+		if (
+			matchesKey(data, Key.space) &&
+			question.multiSelect &&
+			row.kind === "option"
+		) {
 			this.toggleOption(row.optionIndex);
 			return;
 		}
@@ -317,7 +329,10 @@ class Questionnaire implements Component, Focusable {
 		}
 
 		if (this.status) {
-			lines.push("", ...wrapTextWithAnsi(this.theme.fg("warning", this.status), safeWidth));
+			lines.push(
+				"",
+				...wrapTextWithAnsi(this.theme.fg("warning", this.status), safeWidth),
+			);
 		}
 		lines.push("", truncateToWidth(this.renderHint(), safeWidth, "…"));
 		lines.push(this.theme.fg("accent", "─".repeat(safeWidth)));
@@ -343,7 +358,10 @@ class Questionnaire implements Component, Focusable {
 
 	private renderQuestion(lines: string[], width: number): void {
 		const question = this.params.questions[this.currentTab];
-		lines.push(...wrapTextWithAnsi(this.theme.bold(question.question), width), "");
+		lines.push(
+			...wrapTextWithAnsi(this.theme.bold(question.question), width),
+			"",
+		);
 
 		const preview = this.focusedPreview();
 		if (preview && width >= PREVIEW_SIDE_BY_SIDE_MIN_WIDTH) {
@@ -374,18 +392,35 @@ class Questionnaire implements Component, Focusable {
 
 			if (row.kind === "option") {
 				const option = question.options[row.optionIndex];
-				const checked = question.multiSelect ? (selected.has(row.optionIndex) ? "[x] " : "[ ] ") : "";
+				const checked = question.multiSelect
+					? selected.has(row.optionIndex)
+						? "[x] "
+						: "[ ] "
+					: "";
 				const number = `${row.optionIndex + 1}. `;
 				const recommended = option.label.endsWith(RECOMMENDED_SUFFIX);
-				let label = recommended ? this.theme.fg("success", this.theme.bold(option.label)) : option.label;
+				let label = recommended
+					? this.theme.fg("success", this.theme.bold(option.label))
+					: option.label;
 				if (focused) label = this.theme.fg("accent", label);
 				this.pushWrapped(lines, prefix, `${checked}${number}${label}`, width);
-				this.pushWrapped(lines, "     ", this.theme.fg("muted", option.description), width);
+				this.pushWrapped(
+					lines,
+					"     ",
+					this.theme.fg("muted", option.description),
+					width,
+				);
 				continue;
 			}
 
 			if (row.kind === "custom") {
-				this.pushInlineInput(lines, prefix, question.options.length + 1, focused, width);
+				this.pushInlineInput(
+					lines,
+					prefix,
+					question.options.length + 1,
+					focused,
+					width,
+				);
 				continue;
 			}
 
@@ -395,7 +430,13 @@ class Questionnaire implements Component, Focusable {
 		}
 	}
 
-	private pushInlineInput(lines: string[], prefix: string, number: number, focused: boolean, width: number): void {
+	private pushInlineInput(
+		lines: string[],
+		prefix: string,
+		number: number,
+		focused: boolean,
+		width: number,
+	): void {
 		const plainLabel = `${number}. ${CUSTOM_ANSWER_PROMPT} `;
 		const label = focused ? this.theme.fg("accent", plainLabel) : plainLabel;
 		const used = visibleWidth(prefix) + visibleWidth(label);
@@ -403,24 +444,39 @@ class Questionnaire implements Component, Focusable {
 			this.pushWrapped(lines, prefix, label, width);
 			return;
 		}
-		const input = this.customInputs[this.currentTab].render(width - used)[0] ?? "";
+		const input =
+			this.customInputs[this.currentTab].render(width - used)[0] ?? "";
 		lines.push(`${prefix}${label}${input}`);
 	}
 
 	private renderPreviewBox(preview: string, width: number): string[] {
-		if (width < 4) return new Markdown(preview, 0, 0, this.markdownTheme).render(width);
+		if (width < 4)
+			return new Markdown(preview, 0, 0, this.markdownTheme).render(width);
 
 		const innerWidth = width - 4;
-		const rendered = new Markdown(preview, 0, 0, this.markdownTheme).render(innerWidth);
+		const rendered = new Markdown(preview, 0, 0, this.markdownTheme).render(
+			innerWidth,
+		);
 		const visible = rendered.slice(0, MAX_PREVIEW_LINES);
 		if (rendered.length > MAX_PREVIEW_LINES) {
-			visible.push(this.theme.fg("dim", `… ${rendered.length - MAX_PREVIEW_LINES} more lines`));
+			visible.push(
+				this.theme.fg(
+					"dim",
+					`… ${rendered.length - MAX_PREVIEW_LINES} more lines`,
+				),
+			);
 		}
 
 		const title = " Preview ";
 		const top = `┌${title}${"─".repeat(Math.max(0, width - title.length - 2))}┐`;
-		const body = visible.map((line) => `│ ${this.padToWidth(line, innerWidth)} │`);
-		return [this.theme.fg("muted", top), ...body, this.theme.fg("muted", `└${"─".repeat(width - 2)}┘`)];
+		const body = visible.map(
+			(line) => `│ ${this.padToWidth(line, innerWidth)} │`,
+		);
+		return [
+			this.theme.fg("muted", top),
+			...body,
+			this.theme.fg("muted", `└${"─".repeat(width - 2)}┘`),
+		];
 	}
 
 	private appendColumns(
@@ -447,14 +503,30 @@ class Questionnaire implements Component, Focusable {
 		for (let index = 0; index < this.params.questions.length; index++) {
 			const question = this.params.questions[index];
 			const answer = this.answers.get(index);
-			const value = answer ? answerText(answer) : this.theme.fg("warning", "Not answered");
-			this.pushWrapped(lines, "", `${this.theme.fg("muted", `${question.header}:`)} ${value}`, width);
+			const value = answer
+				? answerText(answer)
+				: this.theme.fg("warning", "Not answered");
+			this.pushWrapped(
+				lines,
+				"",
+				`${this.theme.fg("muted", `${question.header}:`)} ${value}`,
+				width,
+			);
 		}
-		lines.push("", this.theme.fg(this.allAnswered() ? "success" : "warning", this.allAnswered() ? "Press Enter to submit." : "Answer every question before submitting."));
+		lines.push(
+			"",
+			this.theme.fg(
+				this.allAnswered() ? "success" : "warning",
+				this.allAnswered()
+					? "Press Enter to submit."
+					: "Answer every question before submitting.",
+			),
+		);
 	}
 
 	private renderHint(): string {
-		if (this.currentTab === this.params.questions.length) return "Enter submit • Tab/←→ questions • Esc cancel";
+		if (this.currentTab === this.params.questions.length)
+			return "Enter submit • Tab/←→ questions • Esc cancel";
 		const question = this.params.questions[this.currentTab];
 		const select = this.isCustomInputFocused()
 			? "Type your answer • Enter submit"
@@ -469,10 +541,17 @@ class Questionnaire implements Component, Focusable {
 		const question = this.params.questions[this.currentTab];
 		if (question.multiSelect) return undefined;
 		const row = rowsFor(question)[this.cursors[this.currentTab]];
-		return row.kind === "option" ? question.options[row.optionIndex].preview : undefined;
+		return row.kind === "option"
+			? question.options[row.optionIndex].preview
+			: undefined;
 	}
 
-	private pushWrapped(lines: string[], prefix: string, text: string, width: number): void {
+	private pushWrapped(
+		lines: string[],
+		prefix: string,
+		text: string,
+		width: number,
+	): void {
 		const prefixWidth = visibleWidth(prefix);
 		if (prefixWidth >= width) {
 			lines.push(...wrapTextWithAnsi(`${prefix}${text}`, width));
@@ -480,7 +559,9 @@ class Questionnaire implements Component, Focusable {
 		}
 		const wrapped = wrapTextWithAnsi(text, width - prefixWidth);
 		for (let index = 0; index < wrapped.length; index++) {
-			lines.push(`${index === 0 ? prefix : " ".repeat(prefixWidth)}${wrapped[index]}`);
+			lines.push(
+				`${index === 0 ? prefix : " ".repeat(prefixWidth)}${wrapped[index]}`,
+			);
 		}
 	}
 
@@ -492,7 +573,10 @@ class Questionnaire implements Component, Focusable {
 
 	private updateInputFocus(): void {
 		for (let index = 0; index < this.customInputs.length; index++) {
-			this.customInputs[index].focused = this._focused && index === this.currentTab && this.isCustomInputFocused();
+			this.customInputs[index].focused =
+				this._focused &&
+				index === this.currentTab &&
+				this.isCustomInputFocused();
 		}
 	}
 
@@ -562,7 +646,10 @@ class Questionnaire implements Component, Focusable {
 			this.done({ answers: this.orderedAnswers(), cancelled: false });
 			return;
 		}
-		this.currentTab = Math.min(this.currentTab + 1, this.params.questions.length);
+		this.currentTab = Math.min(
+			this.currentTab + 1,
+			this.params.questions.length,
+		);
 		this.updateInputFocus();
 		this.refresh();
 	}
@@ -581,7 +668,9 @@ class Questionnaire implements Component, Focusable {
 	}
 
 	private orderedAnswers(): Answer[] {
-		return [...this.answers.values()].sort((a, b) => a.questionIndex - b.questionIndex);
+		return [...this.answers.values()].sort(
+			(a, b) => a.questionIndex - b.questionIndex,
+		);
 	}
 
 	private refresh(): void {
@@ -589,9 +678,7 @@ class Questionnaire implements Component, Focusable {
 	}
 }
 
-// =============================================================================
 // Extension
-// =============================================================================
 export default function askUserQuestionExtension(pi: ExtensionAPI): void {
 	pi.registerTool({
 		name: "ask_user_question",
@@ -604,21 +691,35 @@ export default function askUserQuestionExtension(pi: ExtensionAPI): void {
 		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
 			if (ctx.mode !== "tui") {
 				return {
-					content: [{ type: "text" as const, text: "Error: ask_user_question requires Pi's interactive terminal." }],
-					details: { answers: [], cancelled: true } satisfies QuestionnaireResult,
+					content: [
+						{
+							type: "text" as const,
+							text: "Error: ask_user_question requires Pi's interactive terminal.",
+						},
+					],
+					details: {
+						answers: [],
+						cancelled: true,
+					} satisfies QuestionnaireResult,
 				};
 			}
 
 			const validationError = validateQuestions(params);
 			if (validationError) {
 				return {
-					content: [{ type: "text" as const, text: `Error: ${validationError}` }],
-					details: { answers: [], cancelled: true } satisfies QuestionnaireResult,
+					content: [
+						{ type: "text" as const, text: `Error: ${validationError}` },
+					],
+					details: {
+						answers: [],
+						cancelled: true,
+					} satisfies QuestionnaireResult,
 				};
 			}
 
 			const result = await ctx.ui.custom<QuestionnaireResult>(
-				(tui, theme, _keybindings, done) => new Questionnaire(tui, theme, params, done),
+				(tui, theme, _keybindings, done) =>
+					new Questionnaire(tui, theme, params, done),
 				{
 					overlay: true,
 					overlayOptions: {

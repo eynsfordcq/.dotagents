@@ -4,8 +4,12 @@
  * Tune via the constants below. Do not rename TOOL_NAME: session history
  * replays todos by filtering on the tool name.
  */
-import type { ExtensionAPI, ExtensionUIContext, Theme } from "@earendil-works/pi-coding-agent";
-import { Text, truncateToWidth, type TUI } from "@earendil-works/pi-tui";
+import type {
+	ExtensionAPI,
+	ExtensionUIContext,
+	Theme,
+} from "@earendil-works/pi-coding-agent";
+import { Text, type TUI, truncateToWidth } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 
 const PROMPT_SNIPPET = "Manage a task list to track multi-step progress";
@@ -88,52 +92,81 @@ const TodoParamsSchema = Type.Object({
 		],
 		{ description: "Action: create, update, list, get, delete, or clear" },
 	),
-	subject: Type.Optional(Type.String({ description: "Task subject line (required for create)" })),
-	description: Type.Optional(Type.String({ description: "Long-form task description" })),
+	subject: Type.Optional(
+		Type.String({ description: "Task subject line (required for create)" }),
+	),
+	description: Type.Optional(
+		Type.String({ description: "Long-form task description" }),
+	),
 	activeForm: Type.Optional(
 		Type.String({
-			description: "Present-continuous spinner label shown while status is in_progress (e.g. 'writing tests')",
+			description:
+				"Present-continuous spinner label shown while status is in_progress (e.g. 'writing tests')",
 		}),
 	),
 	status: Type.Optional(
-		Type.Union([Type.Literal("pending"), Type.Literal("in_progress"), Type.Literal("completed"), Type.Literal("deleted")], {
-			description:
-				"Set this task's status (update): one of pending, in_progress, completed, deleted. When action is list, filters returned tasks by this status.",
+		Type.Union(
+			[
+				Type.Literal("pending"),
+				Type.Literal("in_progress"),
+				Type.Literal("completed"),
+				Type.Literal("deleted"),
+			],
+			{
+				description:
+					"Set this task's status (update): one of pending, in_progress, completed, deleted. When action is list, filters returned tasks by this status.",
+			},
+		),
+	),
+	blockedBy: Type.Optional(
+		Type.Array(Type.Number(), {
+			description: "Initial blockedBy ids (create only)",
 		}),
 	),
-	blockedBy: Type.Optional(Type.Array(Type.Number(), { description: "Initial blockedBy ids (create only)" })),
 	addBlockedBy: Type.Optional(
-		Type.Array(Type.Number(), { description: "Task ids to add to blockedBy (update only, additive merge)" }),
+		Type.Array(Type.Number(), {
+			description: "Task ids to add to blockedBy (update only, additive merge)",
+		}),
 	),
 	removeBlockedBy: Type.Optional(
-		Type.Array(Type.Number(), { description: "Task ids to remove from blockedBy (update only, additive merge)" }),
-	),
-	owner: Type.Optional(Type.String({ description: "Agent/owner assigned to this task" })),
-	metadata: Type.Optional(
-		Type.Record(Type.String(), Type.Unknown(), {
-			description: "Arbitrary metadata; pass null value for a key to delete that key on update",
+		Type.Array(Type.Number(), {
+			description:
+				"Task ids to remove from blockedBy (update only, additive merge)",
 		}),
 	),
-	id: Type.Optional(Type.Number({ description: "Task id (required for update, get, delete)" })),
+	owner: Type.Optional(
+		Type.String({ description: "Agent/owner assigned to this task" }),
+	),
+	metadata: Type.Optional(
+		Type.Record(Type.String(), Type.Unknown(), {
+			description:
+				"Arbitrary metadata; pass null value for a key to delete that key on update",
+		}),
+	),
+	id: Type.Optional(
+		Type.Number({ description: "Task id (required for update, get, delete)" }),
+	),
 	includeDeleted: Type.Optional(
 		Type.Boolean({
-			description: "If true, list action returns deleted (tombstoned) tasks as well. Default: false.",
+			description:
+				"If true, list action returns deleted (tombstoned) tasks as well. Default: false.",
 		}),
 	),
 });
 
 function sanitizeTerminalText(value: string): string {
-	return (
-		value
-			.replace(/(?:\u001b\[|\u009b)[0-?]*[ -/]*[@-~]/g, "")
-			.replace(/(?:\u001b\]|\u009d)[^\u0007\u009c\u001b]*(?:\u0007|\u009c|\u001b\\)?/g, "")
-			.replace(/\u001b./g, "")
-			.replace(/[\u2028\u2029]/g, " ")
-			.replace(/[\u0000-\u001f\u007f-\u009f]/g, (character) =>
-				character === "\n" || character === "\r" || character === "\t" ? " " : "",
-			)
-			.replace(/[\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, "")
-	);
+	return value
+		.replace(/(?:\u001b\[|\u009b)[0-?]*[ -/]*[@-~]/g, "")
+		.replace(
+			/(?:\u001b\]|\u009d)[^\u0007\u009c\u001b]*(?:\u0007|\u009c|\u001b\\)?/g,
+			"",
+		)
+		.replace(/\u001b./g, "")
+		.replace(/[\u2028\u2029]/g, " ")
+		.replace(/[\u0000-\u001f\u007f-\u009f]/g, (character) =>
+			character === "\n" || character === "\r" || character === "\t" ? " " : "",
+		)
+		.replace(/[\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, "");
 }
 
 const STATUS_LABEL: Record<TaskStatus, string> = {
@@ -155,7 +188,11 @@ function isTransitionValid(from: TaskStatus, to: TaskStatus): boolean {
 	return VALID_TRANSITIONS[from].has(to);
 }
 
-function detectCycle(taskList: readonly Task[], taskId: number, newBlockedBy: readonly number[]): boolean {
+function detectCycle(
+	taskList: readonly Task[],
+	taskId: number,
+	newBlockedBy: readonly number[],
+): boolean {
 	const edges = new Map<number, number[]>();
 	for (const t of taskList) {
 		if (t.id === taskId) {
@@ -197,7 +234,13 @@ function deriveBlocks(taskList: readonly Task[]): Map<number, number[]> {
 
 type Op =
 	| { kind: "create"; taskId: number }
-	| { kind: "update"; id: number; fromStatus: TaskStatus; toStatus: TaskStatus; changed: boolean }
+	| {
+			kind: "update";
+			id: number;
+			fromStatus: TaskStatus;
+			toStatus: TaskStatus;
+			changed: boolean;
+	  }
 	| { kind: "delete"; id: number; subject: string }
 	| { kind: "list"; statusFilter?: TaskStatus; includeDeleted: boolean }
 	| { kind: "get"; task: Task }
@@ -213,13 +256,19 @@ function errorResult(state: TaskState, message: string): ApplyResult {
 	return { state, op: { kind: "error", message } };
 }
 
-function sameNumberList(a: number[] | undefined, b: number[] | undefined): boolean {
+function sameNumberList(
+	a: number[] | undefined,
+	b: number[] | undefined,
+): boolean {
 	const x = a ?? [];
 	const y = b ?? [];
 	return x.length === y.length && x.every((v, i) => v === y[i]);
 }
 
-function sameRecord(a: Record<string, unknown> | undefined, b: Record<string, unknown> | undefined): boolean {
+function sameRecord(
+	a: Record<string, unknown> | undefined,
+	b: Record<string, unknown> | undefined,
+): boolean {
 	return JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 }
 
@@ -235,18 +284,29 @@ function taskChanged(before: Task, after: Task): boolean {
 	);
 }
 
-function applyTaskMutation(state: TaskState, action: TaskAction, params: TaskMutationParams): ApplyResult {
+function applyTaskMutation(
+	state: TaskState,
+	action: TaskAction,
+	params: TaskMutationParams,
+): ApplyResult {
 	switch (action) {
 		case "create": {
-			if (!params.subject?.trim()) return errorResult(state, "subject required for create");
+			if (!params.subject?.trim())
+				return errorResult(state, "subject required for create");
 			if (params.blockedBy?.length) {
 				for (const dep of params.blockedBy) {
 					const depTask = state.tasks.find((t) => t.id === dep);
-					if (!depTask) return errorResult(state, `blockedBy: #${dep} not found`);
-					if (depTask.status === "deleted") return errorResult(state, `blockedBy: #${dep} is deleted`);
+					if (!depTask)
+						return errorResult(state, `blockedBy: #${dep} not found`);
+					if (depTask.status === "deleted")
+						return errorResult(state, `blockedBy: #${dep} is deleted`);
 				}
 			}
-			const newTask: Task = { id: state.nextId, subject: params.subject, status: "pending" };
+			const newTask: Task = {
+				id: state.nextId,
+				subject: params.subject,
+				status: "pending",
+			};
 			if (params.description) newTask.description = params.description;
 			if (params.activeForm) newTask.activeForm = params.activeForm;
 			if (params.blockedBy?.length) newTask.blockedBy = [...params.blockedBy];
@@ -258,7 +318,8 @@ function applyTaskMutation(state: TaskState, action: TaskAction, params: TaskMut
 			};
 		}
 		case "update": {
-			if (params.id === undefined) return errorResult(state, "id required for update");
+			if (params.id === undefined)
+				return errorResult(state, "id required for update");
 			const idx = state.tasks.findIndex((t) => t.id === params.id);
 			if (idx === -1) return errorResult(state, `#${params.id} not found`);
 			const current = state.tasks[idx];
@@ -280,7 +341,10 @@ function applyTaskMutation(state: TaskState, action: TaskAction, params: TaskMut
 			let newStatus = current.status;
 			if (params.status !== undefined) {
 				if (!isTransitionValid(current.status, params.status)) {
-					return errorResult(state, `illegal transition ${current.status} → ${params.status}`);
+					return errorResult(
+						state,
+						`illegal transition ${current.status} → ${params.status}`,
+					);
 				}
 				newStatus = params.status;
 			}
@@ -291,14 +355,20 @@ function applyTaskMutation(state: TaskState, action: TaskAction, params: TaskMut
 			}
 			if (params.addBlockedBy?.length) {
 				for (const dep of params.addBlockedBy) {
-					if (dep === current.id) return errorResult(state, `cannot block #${current.id} on itself`);
+					if (dep === current.id)
+						return errorResult(state, `cannot block #${current.id} on itself`);
 					const depTask = state.tasks.find((t) => t.id === dep);
-					if (!depTask) return errorResult(state, `addBlockedBy: #${dep} not found`);
-					if (depTask.status === "deleted") return errorResult(state, `addBlockedBy: #${dep} is deleted`);
+					if (!depTask)
+						return errorResult(state, `addBlockedBy: #${dep} not found`);
+					if (depTask.status === "deleted")
+						return errorResult(state, `addBlockedBy: #${dep} is deleted`);
 					if (!newBlockedBy.includes(dep)) newBlockedBy.push(dep);
 				}
 				if (detectCycle(state.tasks, current.id, newBlockedBy)) {
-					return errorResult(state, "addBlockedBy would create a cycle in the blockedBy graph");
+					return errorResult(
+						state,
+						"addBlockedBy would create a cycle in the blockedBy graph",
+					);
 				}
 			}
 			let newMetadata = current.metadata;
@@ -312,8 +382,10 @@ function applyTaskMutation(state: TaskState, action: TaskAction, params: TaskMut
 			}
 			const updated: Task = { ...current, status: newStatus };
 			if (params.subject !== undefined) updated.subject = params.subject;
-			if (params.description !== undefined) updated.description = params.description;
-			if (params.activeForm !== undefined) updated.activeForm = params.activeForm;
+			if (params.description !== undefined)
+				updated.description = params.description;
+			if (params.activeForm !== undefined)
+				updated.activeForm = params.activeForm;
 			if (params.owner !== undefined) updated.owner = params.owner;
 			if (newBlockedBy.length) updated.blockedBy = newBlockedBy;
 			else delete updated.blockedBy;
@@ -338,22 +410,27 @@ function applyTaskMutation(state: TaskState, action: TaskAction, params: TaskMut
 				op: {
 					kind: "list",
 					includeDeleted: params.includeDeleted === true,
-					...(params.status !== undefined ? { statusFilter: params.status } : {}),
+					...(params.status !== undefined
+						? { statusFilter: params.status }
+						: {}),
 				},
 			};
 		}
 		case "get": {
-			if (params.id === undefined) return errorResult(state, "id required for get");
+			if (params.id === undefined)
+				return errorResult(state, "id required for get");
 			const task = state.tasks.find((t) => t.id === params.id);
 			if (!task) return errorResult(state, `#${params.id} not found`);
 			return { state, op: { kind: "get", task } };
 		}
 		case "delete": {
-			if (params.id === undefined) return errorResult(state, "id required for delete");
+			if (params.id === undefined)
+				return errorResult(state, "id required for delete");
 			const idx = state.tasks.findIndex((t) => t.id === params.id);
 			if (idx === -1) return errorResult(state, `#${params.id} not found`);
 			const current = state.tasks[idx];
-			if (current.status === "deleted") return errorResult(state, `#${current.id} is already deleted`);
+			if (current.status === "deleted")
+				return errorResult(state, `#${current.id} is already deleted`);
 			const updated: Task = { ...current, status: "deleted" };
 			const newTasks = [...state.tasks];
 			newTasks[idx] = updated;
@@ -363,7 +440,10 @@ function applyTaskMutation(state: TaskState, action: TaskAction, params: TaskMut
 			};
 		}
 		case "clear": {
-			return { state: { tasks: [], nextId: 1 }, op: { kind: "clear", count: state.tasks.length } };
+			return {
+				state: { tasks: [], nextId: 1 },
+				op: { kind: "clear", count: state.tasks.length },
+			};
 		}
 	}
 }
@@ -380,7 +460,12 @@ interface TodoCounts {
 }
 
 function selectTodoCounts(state: TaskState): TodoCounts {
-	const counts: TodoCounts = { total: 0, pending: 0, inProgress: 0, completed: 0 };
+	const counts: TodoCounts = {
+		total: 0,
+		pending: 0,
+		inProgress: 0,
+		completed: 0,
+	};
 	for (const t of selectVisibleTasks(state)) {
 		counts.total++;
 		if (t.status === "pending") counts.pending++;
@@ -391,10 +476,15 @@ function selectTodoCounts(state: TaskState): TodoCounts {
 }
 
 function selectShowTaskIds(state: TaskState): boolean {
-	return selectVisibleTasks(state).some((t) => t.blockedBy && t.blockedBy.length > 0);
+	return selectVisibleTasks(state).some(
+		(t) => t.blockedBy && t.blockedBy.length > 0,
+	);
 }
 
-function selectTaskSubjectById(state: TaskState, id: number): string | undefined {
+function selectTaskSubjectById(
+	state: TaskState,
+	id: number,
+): string | undefined {
 	return state.tasks.find((t) => t.id === id)?.subject;
 }
 
@@ -407,7 +497,8 @@ interface OverlayLayout {
 // Overflow drops completed tasks first, then truncates the remaining tail.
 function selectOverlayLayout(state: TaskState, budget: number): OverlayLayout {
 	const all = selectVisibleTasks(state);
-	if (all.length <= budget) return { visible: all, hiddenCompleted: 0, truncatedTail: 0 };
+	if (all.length <= budget)
+		return { visible: all, hiddenCompleted: 0, truncatedTail: 0 };
 	const innerBudget = budget - 1;
 	const nonCompleted = all.filter((t) => t.status !== "completed");
 	const totalCompleted = all.length - nonCompleted.length;
@@ -418,8 +509,14 @@ function selectOverlayLayout(state: TaskState, budget: number): OverlayLayout {
 			if (t.status === "completed") kept.add(t);
 		}
 		const visible = all.filter((t) => kept.has(t));
-		const shownCompleted = visible.filter((t) => t.status === "completed").length;
-		return { visible, hiddenCompleted: totalCompleted - shownCompleted, truncatedTail: 0 };
+		const shownCompleted = visible.filter(
+			(t) => t.status === "completed",
+		).length;
+		return {
+			visible,
+			hiddenCompleted: totalCompleted - shownCompleted,
+			truncatedTail: 0,
+		};
 	}
 	return {
 		visible: nonCompleted.slice(0, innerBudget),
@@ -429,22 +526,37 @@ function selectOverlayLayout(state: TaskState, budget: number): OverlayLayout {
 }
 
 function selectHasActive(state: TaskState): boolean {
-	return selectVisibleTasks(state).some((t) => t.status === "in_progress" || t.status === "pending");
+	return selectVisibleTasks(state).some(
+		(t) => t.status === "in_progress" || t.status === "pending",
+	);
 }
 
 function formatListLine(t: Task): string {
-	const block = t.blockedBy?.length ? ` ⛓ ${t.blockedBy.map((id) => `#${id}`).join(",")}` : "";
-	const form = t.status === "in_progress" && t.activeForm ? ` (${sanitizeTerminalText(t.activeForm)})` : "";
+	const block = t.blockedBy?.length
+		? ` ⛓ ${t.blockedBy.map((id) => `#${id}`).join(",")}`
+		: "";
+	const form =
+		t.status === "in_progress" && t.activeForm
+			? ` (${sanitizeTerminalText(t.activeForm)})`
+			: "";
 	return `[${t.status}] #${t.id} ${sanitizeTerminalText(t.subject)}${form}${block}`;
 }
 
 function formatGetLines(task: Task, state: TaskState): string {
 	const blocks = deriveBlocks(state.tasks).get(task.id) ?? [];
-	const lines = [`#${task.id} [${task.status}] ${sanitizeTerminalText(task.subject)}`];
-	if (task.description) lines.push(`  description: ${sanitizeTerminalText(task.description)}`);
-	if (task.activeForm) lines.push(`  activeForm: ${sanitizeTerminalText(task.activeForm)}`);
-	if (task.blockedBy?.length) lines.push(`  blockedBy: ${task.blockedBy.map((id) => `#${id}`).join(", ")}`);
-	if (blocks.length) lines.push(`  blocks: ${blocks.map((id) => `#${id}`).join(", ")}`);
+	const lines = [
+		`#${task.id} [${task.status}] ${sanitizeTerminalText(task.subject)}`,
+	];
+	if (task.description)
+		lines.push(`  description: ${sanitizeTerminalText(task.description)}`);
+	if (task.activeForm)
+		lines.push(`  activeForm: ${sanitizeTerminalText(task.activeForm)}`);
+	if (task.blockedBy?.length)
+		lines.push(
+			`  blockedBy: ${task.blockedBy.map((id) => `#${id}`).join(", ")}`,
+		);
+	if (blocks.length)
+		lines.push(`  blocks: ${blocks.map((id) => `#${id}`).join(", ")}`);
 	if (task.owner) lines.push(`  owner: ${sanitizeTerminalText(task.owner)}`);
 	return lines.join("\n");
 }
@@ -457,8 +569,12 @@ function formatContent(op: Op, state: TaskState): string {
 			return `Created #${t.id}: ${sanitizeTerminalText(t.subject)} (pending)`;
 		}
 		case "update": {
-			if (!op.changed) return `No change: #${op.id} already matches the requested values (status: ${op.toStatus})`;
-			const transition = op.fromStatus !== op.toStatus ? ` (${op.fromStatus} → ${op.toStatus})` : "";
+			if (!op.changed)
+				return `No change: #${op.id} already matches the requested values (status: ${op.toStatus})`;
+			const transition =
+				op.fromStatus !== op.toStatus
+					? ` (${op.fromStatus} → ${op.toStatus})`
+					: "";
 			return `Updated #${op.id}${transition}`;
 		}
 		case "delete":
@@ -468,8 +584,11 @@ function formatContent(op: Op, state: TaskState): string {
 		case "list": {
 			let view = state.tasks;
 			if (!op.includeDeleted) view = view.filter((t) => t.status !== "deleted");
-			if (op.statusFilter) view = view.filter((t) => t.status === op.statusFilter);
-			return view.length === 0 ? "No tasks" : view.map(formatListLine).join("\n");
+			if (op.statusFilter)
+				view = view.filter((t) => t.status === op.statusFilter);
+			return view.length === 0
+				? "No tasks"
+				: view.map(formatListLine).join("\n");
 		}
 		case "get":
 			return formatGetLines(op.task, state);
@@ -508,7 +627,12 @@ function sid(ctx: SessionCtx): string {
 }
 
 function slotFor(sessionId: string): TaskState {
-	return sessions.get(sessionId) ?? { tasks: [...EMPTY_STATE.tasks], nextId: EMPTY_STATE.nextId };
+	return (
+		sessions.get(sessionId) ?? {
+			tasks: [...EMPTY_STATE.tasks],
+			nextId: EMPTY_STATE.nextId,
+		}
+	);
 }
 
 function replaceState(sessionId: string, next: TaskState): void {
@@ -547,14 +671,23 @@ function isTaskDetails(value: unknown): value is TaskDetails {
 
 // Last `todo` result in the branch wins; anything else means an empty list.
 function replayFromBranch(ctx: SessionCtx): TaskState {
-	let result: TaskState = { tasks: [...EMPTY_STATE.tasks], nextId: EMPTY_STATE.nextId };
+	let result: TaskState = {
+		tasks: [...EMPTY_STATE.tasks],
+		nextId: EMPTY_STATE.nextId,
+	};
 	for (const entry of ctx.sessionManager.getBranch()) {
-		const e = entry as { type?: string; message?: { role?: string; toolName?: string; details?: unknown } };
+		const e = entry as {
+			type?: string;
+			message?: { role?: string; toolName?: string; details?: unknown };
+		};
 		if (e.type !== "message") continue;
 		const msg = e.message;
 		if (msg?.role !== "toolResult" || msg.toolName !== TOOL_NAME) continue;
 		if (!isTaskDetails(msg.details)) continue;
-		result = { tasks: msg.details.tasks.map((t) => ({ ...t })), nextId: msg.details.nextId };
+		result = {
+			tasks: msg.details.tasks.map((t) => ({ ...t })),
+			nextId: msg.details.nextId,
+		};
 	}
 	return result;
 }
@@ -566,7 +699,10 @@ const STATUS_GLYPH: Record<TaskStatus, string> = {
 	deleted: "⊘",
 };
 
-const STATUS_COLOR: Record<TaskStatus, "dim" | "warning" | "success" | "muted"> = {
+const STATUS_COLOR: Record<
+	TaskStatus,
+	"dim" | "warning" | "success" | "muted"
+> = {
 	pending: "dim",
 	in_progress: "warning",
 	completed: "success",
@@ -598,9 +734,14 @@ function overlayStatusGlyph(status: TaskStatus, theme: Theme): string {
 function formatOverlayTaskLine(t: Task, theme: Theme, showId: boolean): string {
 	const glyph = overlayStatusGlyph(t.status, theme);
 	const subjectColor =
-		t.status === "in_progress" ? "accent" : t.status === "completed" || t.status === "deleted" ? "muted" : "text";
+		t.status === "in_progress"
+			? "accent"
+			: t.status === "completed" || t.status === "deleted"
+				? "muted"
+				: "text";
 	let subject = theme.fg(subjectColor, sanitizeTerminalText(t.subject));
-	if (t.status === "completed" || t.status === "deleted") subject = theme.strikethrough(subject);
+	if (t.status === "completed" || t.status === "deleted")
+		subject = theme.strikethrough(subject);
 	let line = `${glyph}`;
 	if (showId) line += ` ${theme.fg("dim", `#${t.id}`)}`;
 	line += ` ${subject}`;
@@ -613,12 +754,22 @@ function formatOverlayTaskLine(t: Task, theme: Theme, showId: boolean): string {
 	return line;
 }
 
-function renderTodoCall(args: TaskMutationParams & { action: TaskAction }, theme: Theme, state: TaskState): Text {
+function renderTodoCall(
+	args: TaskMutationParams & { action: TaskAction },
+	theme: Theme,
+	state: TaskState,
+): Text {
 	const glyph = ACTION_GLYPH[args.action] ?? args.action;
-	let text = theme.fg("toolTitle", theme.bold("todo ")) + theme.fg("muted", glyph);
+	let text =
+		theme.fg("toolTitle", theme.bold("todo ")) + theme.fg("muted", glyph);
 	if (args.action === "create" && args.subject) {
 		text += ` ${theme.fg("dim", sanitizeTerminalText(args.subject))}`;
-	} else if ((args.action === "update" || args.action === "get" || args.action === "delete") && args.id !== undefined) {
+	} else if (
+		(args.action === "update" ||
+			args.action === "get" ||
+			args.action === "delete") &&
+		args.id !== undefined
+	) {
 		const subject = selectTaskSubjectById(state, args.id);
 		text += ` ${theme.fg("accent", subject ? sanitizeTerminalText(subject) : `#${args.id}`)}`;
 	} else if (args.action === "list" && args.status) {
@@ -637,7 +788,9 @@ function renderTodoResult(result: { details?: unknown }, theme: Theme): Text {
 				status = details.tasks[details.tasks.length - 1]?.status;
 				break;
 			case "update":
-				status = params.status ?? details.tasks.find((t) => t.id === params.id)?.status;
+				status =
+					params.status ??
+					details.tasks.find((t) => t.id === params.id)?.status;
 				break;
 			case "delete":
 				status = details.tasks.find((t) => t.id === params.id)?.status;
@@ -649,7 +802,14 @@ function renderTodoResult(result: { details?: unknown }, theme: Theme): Text {
 		}
 	}
 	if (status) {
-		return new Text(theme.fg(STATUS_COLOR[status], `${STATUS_GLYPH[status]} ${STATUS_LABEL[status]}`), 0, 0);
+		return new Text(
+			theme.fg(
+				STATUS_COLOR[status],
+				`${STATUS_GLYPH[status]} ${STATUS_LABEL[status]}`,
+			),
+			0,
+			0,
+		);
 	}
 	return new Text(theme.fg("success", "✓"), 0, 0);
 }
@@ -692,7 +852,8 @@ class TodoOverlay {
 				(tui, factoryTheme) => {
 					this.tui = tui;
 					return {
-						render: (width: number) => this.renderWidget(this.uiCtx?.theme ?? factoryTheme, width),
+						render: (width: number) =>
+							this.renderWidget(this.uiCtx?.theme ?? factoryTheme, width),
 						invalidate: () => {},
 					};
 				},
@@ -712,16 +873,20 @@ class TodoOverlay {
 
 	hideCompletedTasksFromPreviousTurn(): void {
 		if (this.completedTaskIdsPendingHide.size === 0) return;
-		for (const taskId of this.completedTaskIdsPendingHide) this.hiddenCompletedTaskIds.add(taskId);
+		for (const taskId of this.completedTaskIdsPendingHide)
+			this.hiddenCompletedTaskIds.add(taskId);
 		this.completedTaskIdsPendingHide.clear();
 		this.tui?.requestRender();
 	}
 
 	private getSnapshot(): Snapshot {
 		const state = getRenderState();
-		if (this.lastNextId !== undefined && state.nextId < this.lastNextId) this.resetCompletedDisplayState();
+		if (this.lastNextId !== undefined && state.nextId < this.lastNextId)
+			this.resetCompletedDisplayState();
 		this.lastNextId = state.nextId;
-		const completedIds = new Set(state.tasks.filter((t) => t.status === "completed").map((t) => t.id));
+		const completedIds = new Set(
+			state.tasks.filter((t) => t.status === "completed").map((t) => t.id),
+		);
 		for (const id of this.completedTaskIdsPendingHide) {
 			if (!completedIds.has(id)) this.completedTaskIdsPendingHide.delete(id);
 		}
@@ -732,19 +897,27 @@ class TodoOverlay {
 	}
 
 	private selectOverlayTasks(snapshot: Snapshot): Task[] {
-		return snapshot.tasks.filter((t) => t.status !== "deleted" && !this.shouldHideCompletedTask(t));
+		return snapshot.tasks.filter(
+			(t) => t.status !== "deleted" && !this.shouldHideCompletedTask(t),
+		);
 	}
 
 	private shouldHideCompletedTask(task: Task): boolean {
-		return task.status === "completed" && this.hiddenCompletedTaskIds.has(task.id);
+		return (
+			task.status === "completed" && this.hiddenCompletedTaskIds.has(task.id)
+		);
 	}
 
 	private renderWidget(theme: Theme, width: number): string[] {
 		const snapshot = this.getSnapshot();
 		const overlayTasks = this.selectOverlayTasks(snapshot);
 		if (overlayTasks.length === 0) return [];
-		const overlayState: TaskState = { tasks: overlayTasks, nextId: snapshot.nextId };
-		const truncate = (line: string): string => truncateToWidth(line, width, "…");
+		const overlayState: TaskState = {
+			tasks: overlayTasks,
+			nextId: snapshot.nextId,
+		};
+		const truncate = (line: string): string =>
+			truncateToWidth(line, width, "…");
 		const counts = selectTodoCounts(overlayState);
 		const hasActive = selectHasActive(overlayState);
 		const showIds = selectShowTaskIds(overlayState);
@@ -755,10 +928,16 @@ class TodoOverlay {
 		);
 		const lines: string[] = [heading];
 		const bodyBudget =
-			this.uiCtx?.getToolsExpanded?.() === true ? overlayTasks.length : Math.max(MAX_WIDGET_LINES, 3) - 1;
+			this.uiCtx?.getToolsExpanded?.() === true
+				? overlayTasks.length
+				: Math.max(MAX_WIDGET_LINES, 3) - 1;
 		const layout = selectOverlayLayout(overlayState, bodyBudget);
 		for (const task of layout.visible) {
-			lines.push(truncate(`${theme.fg("dim", "├─")} ${formatOverlayTaskLine(task, theme, showIds)}`));
+			lines.push(
+				truncate(
+					`${theme.fg("dim", "├─")} ${formatOverlayTaskLine(task, theme, showIds)}`,
+				),
+			);
 		}
 		for (const task of overlayTasks) {
 			if (
@@ -776,11 +955,17 @@ class TodoOverlay {
 		}
 		const totalHidden = layout.hiddenCompleted + layout.truncatedTail;
 		const overflowParts: string[] = [];
-		if (layout.hiddenCompleted > 0) overflowParts.push(`${layout.hiddenCompleted} ${STATUS_LABEL.completed}`);
-		if (layout.truncatedTail > 0) overflowParts.push(`${layout.truncatedTail} ${STATUS_LABEL.pending}`);
+		if (layout.hiddenCompleted > 0)
+			overflowParts.push(`${layout.hiddenCompleted} ${STATUS_LABEL.completed}`);
+		if (layout.truncatedTail > 0)
+			overflowParts.push(`${layout.truncatedTail} ${STATUS_LABEL.pending}`);
 		const summary =
-			overflowParts.length > 0 ? `+${totalHidden} more (${overflowParts.join(", ")})` : `+${totalHidden} more`;
-		lines.push(truncate(`${theme.fg("dim", "└─")} ${theme.fg("dim", summary)}`));
+			overflowParts.length > 0
+				? `+${totalHidden} more (${overflowParts.join(", ")})`
+				: `+${totalHidden} more`;
+		lines.push(
+			truncate(`${theme.fg("dim", "└─")} ${theme.fg("dim", summary)}`),
+		);
 		return this.withTrailingSpacer(lines);
 	}
 
@@ -808,8 +993,13 @@ export default function (pi: ExtensionAPI) {
 	let uiCtx: ExtensionUIContext | undefined;
 	let lifecycleGeneration = 0;
 
-	function updateTodoOverlay(resetCompletedDisplayState = false, generation = lifecycleGeneration): void {
-		const hasVisibleTasks = getRenderState().tasks.some((t) => t.status !== "deleted");
+	function updateTodoOverlay(
+		resetCompletedDisplayState = false,
+		generation = lifecycleGeneration,
+	): void {
+		const hasVisibleTasks = getRenderState().tasks.some(
+			(t) => t.status !== "deleted",
+		);
 		if (!uiCtx || (!todoOverlay && !hasVisibleTasks)) return;
 		if (generation !== lifecycleGeneration || !uiCtx) return;
 		todoOverlay ??= new TodoOverlay();

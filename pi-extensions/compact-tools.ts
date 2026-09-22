@@ -45,9 +45,6 @@ import {
 	truncateToWidth,
 } from "@earendil-works/pi-tui";
 
-// =============================================================================
-// Tuning
-// =============================================================================
 /** How many characters of one tool argument fit on the row. */
 const ARG_MAX_CHARS = 90;
 /** Long paths show only their file name, so the useful part stays visible. */
@@ -74,9 +71,7 @@ const SYMBOL = {
 	elided: "…",
 };
 
-// =============================================================================
 // State
-// =============================================================================
 let currentTheme: any;
 const toolStartedAt = new Map<string, number>();
 const toolEndedAt = new Map<string, number>();
@@ -92,9 +87,7 @@ interface ThinkingState {
 const thinkingStates = new Map<number, ThinkingState>();
 const assistantComponents = new Map<number, any>();
 
-// =============================================================================
 // Style helpers
-// =============================================================================
 function fg(color: string, text: string): string {
 	return currentTheme?.fg?.(color, text) ?? text;
 }
@@ -187,9 +180,7 @@ function toolRow(self: any, width: number): string {
 	return truncateToWidth(line, Math.max(1, width), SYMBOL.elided);
 }
 
-// =============================================================================
 // Thinking lifecycle
-// =============================================================================
 function assistantTimestamp(message: any): number | undefined {
 	const timestamp = Number(message?.timestamp);
 	return Number.isFinite(timestamp) ? timestamp : undefined;
@@ -341,9 +332,7 @@ function showLiveThinking(component: any): void {
 	component.thinkingVisibilityOverrides.clear();
 }
 
-// =============================================================================
 // Prototype patches
-// =============================================================================
 const TOOL_RENDER_ORIGINAL = Symbol.for("compact-tools.tool-render-original");
 const TOOL_MOUSE_ORIGINAL = Symbol.for("compact-tools.tool-mouse-original");
 const ASSISTANT_UPDATE_ORIGINAL = Symbol.for(
@@ -416,9 +405,7 @@ function installPatches(): void {
 	patchAssistantUpdate();
 }
 
-// =============================================================================
 // Extension
-// =============================================================================
 export default function (pi: ExtensionAPI) {
 	installPatches();
 
