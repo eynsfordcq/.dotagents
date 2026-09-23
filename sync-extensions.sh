@@ -2,13 +2,13 @@
 # Sync pi extensions to the global extensions directory.
 #
 # This repo is the single source of truth. Each extension becomes a symlink:
-#   pi-extensions/*.ts -> ~/.pi/agent/extensions/*.ts
+#   .pi/extensions/*.ts -> ~/.pi/agent/extensions/*.ts
 #
 # Existing targets are removed first, so stale copies disappear.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
-SRC_EXTENSIONS="$ROOT/pi-extensions"
+SRC_EXTENSIONS="$ROOT/.pi/extensions"
 DST_EXTENSIONS="$HOME/.pi/agent/extensions"
 
 if [[ ! -d "$SRC_EXTENSIONS" ]]; then
