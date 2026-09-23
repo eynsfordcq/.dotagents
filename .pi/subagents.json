@@ -13,7 +13,7 @@
   "fleetView": false,
   "agentMentions": "off",
   "rememberAgents": true,
-  "widgetMode": "off",
+  "widgetMode": "all",
   "outputTranscript": false,
   "worktreeIsolation": false,
   "workflowsEnabled": false,
