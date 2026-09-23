@@ -2,7 +2,6 @@ import { readFileSync } from "node:fs";
 import { dirname } from "node:path";
 import {
 	type ExtensionAPI,
-	type ExtensionUIContext,
 	getMarkdownTheme,
 	parseSkillBlock,
 	SkillInvocationMessageComponent,
@@ -14,6 +13,7 @@ import {
 	type AutocompleteProvider,
 	type AutocompleteSuggestions,
 	Container,
+	Editor,
 	type EditorComponent,
 	fuzzyFilter,
 	Spacer,
@@ -92,17 +92,6 @@ interface InvocationPlan {
 	skills: LoadedSkill[];
 	body: string;
 }
-
-/** Factory that builds the composer editor. Other extensions can replace it. */
-type EditorFactory = NonNullable<
-	ReturnType<ExtensionUIContext["getEditorComponent"]>
->;
-
-/** Smallest part of the UI we need: read and replace the editor factory. */
-type EditorHostUI = Pick<
-	ExtensionUIContext,
-	"getEditorComponent" | "setEditorComponent"
->;
 
 /**
  * List every skill pi knows about, by name.
@@ -623,91 +612,44 @@ function tryAutoOpenMidlinePicker(editor: EditorComponent): void {
 	}
 }
 
+const HANDLE_INPUT_PATCHED = "__multiSkillsHandleInputPatched";
+
 /**
- * Add the auto-open hook to the editor.
+ * Hook the mid-message `/` auto-open onto every editor at once.
  *
  * The normal editor only opens the `/` picker at the start of the
  * message. After plain typing it also re-opens inside `@` and `#`
  * tokens, but never for a mid-message `/...`. This hook watches
  * keystrokes and opens the picker for that missing case.
  *
- * It wraps the current factory instead of replacing it. Other editor
- * extensions (for example Zentui) keep working underneath.
+ * It patches `Editor.prototype.handleInput` one time instead of
+ * wrapping the editor factory. Factory wrapping breaks when another
+ * extension (paste-expand, Zentui) replaces the editor: the hooked
+ * instance is destroyed and the hook is gone. The prototype patch
+ * rides along on every instance instead: default, custom, and any
+ * editor installed later. Nothing to retry, no wrap layers.
  */
-function wrapEditorFactory(base: EditorFactory): EditorFactory {
-	const buildEditor: EditorFactory = (tui, theme, keybindings) => {
-		const editor = base(tui, theme, keybindings);
-
-		// Hook the instance, not the prototype. Some editors set
-		// handleInput directly on the instance.
-		const originalHandleInput = editor.handleInput.bind(editor);
-
-		editor.handleInput = function handleInputWithSkillHook(data: string): void {
-			originalHandleInput(data);
-			if (!isPlainTypingChar(data)) {
-				return;
-			}
-			tryAutoOpenMidlinePicker(editor);
-		};
-
-		return editor;
+function installMidlinePickerHook(): void {
+	const proto = Editor.prototype as unknown as Record<string, unknown>;
+	if (proto[HANDLE_INPUT_PATCHED]) {
+		return;
+	}
+	proto[HANDLE_INPUT_PATCHED] = true;
+	const originalHandleInput = Editor.prototype.handleInput;
+	Editor.prototype.handleInput = function handleInputWithSkillHook(
+		this: Editor,
+		data: string,
+	): void {
+		originalHandleInput.call(this, data);
+		if (!isPlainTypingChar(data)) {
+			return;
+		}
+		try {
+			tryAutoOpenMidlinePicker(this);
+		} catch {
+			// The picker must never break typing.
+		}
 	};
-
-	return buildEditor;
-}
-
-const WRAPPED_FLAG = "__multiSkillsWrapped";
-
-/** True once our keystroke hook is already on this factory. */
-function isEditorWrapped(factory: EditorFactory): boolean {
-	const flags = factory as unknown as Record<string, unknown>;
-	return Boolean(flags[WRAPPED_FLAG]);
-}
-
-/** Mark a factory so a second pass skips it. */
-function markEditorWrapped(factory: EditorFactory): void {
-	const flags = factory as unknown as Record<string, unknown>;
-	flags[WRAPPED_FLAG] = true;
-}
-
-/**
- * Read the active editor factory from the UI, if the host has one.
- * Some hosts (tests, older pi builds) have no editor to wrap.
- */
-function readEditorFactory(ui: EditorHostUI): EditorFactory | undefined {
-	const getter = (ui as unknown as { getEditorComponent?: unknown })
-		.getEditorComponent;
-	if (typeof getter !== "function") {
-		return undefined;
-	}
-	const factory = (getter as () => EditorFactory | undefined).call(ui);
-	return factory;
-}
-
-/**
- * Put our keystroke hook onto the active editor factory.
- *
- * Returns true when the hook is on, or when there is nothing to wrap.
- * Returns false when the factory is not ready yet (call again later).
- */
-function wrapActiveEditor(ui: EditorHostUI): boolean {
-	const base = readEditorFactory(ui);
-	if (base === undefined) {
-		// No getEditorComponent means nothing to wrap.
-		// The picker still works through Tab.
-		// No factory yet means another extension has not installed
-		// its editor. The retry timer tries again.
-		const hasGetter =
-			typeof (ui as unknown as { getEditorComponent?: unknown })
-				.getEditorComponent === "function";
-		return !hasGetter;
-	}
-	if (isEditorWrapped(base)) {
-		return true;
-	}
-	markEditorWrapped(base);
-	ui.setEditorComponent(wrapEditorFactory(base));
-	return true;
 }
 
 export default function multiSkillsExtension(api: ExtensionAPI): void {
@@ -746,19 +688,9 @@ export default function multiSkillsExtension(api: ExtensionAPI): void {
 		ctx.ui.addAutocompleteProvider(function provideSkillAnywhere(current) {
 			return createMultiSkillsProvider(api, current);
 		});
-		wrapActiveEditor(ctx.ui);
-
-		// Wrap instead of replace: whoever is installed now stays as the
-		// base, and our keystroke hook rides on top. Retry on a timer
-		// because other extensions (for example Zentui) may install their
-		// editor after session_start. Each pass skips marked factories.
-		// The timer stops once the hook is on, or after 10 seconds.
-		const timer = setInterval(() => {
-			if (wrapActiveEditor(ctx.ui)) {
-				clearInterval(timer);
-			}
-		}, 500);
-		setTimeout(() => clearInterval(timer), 10_000);
+		// Prototype hook: it applies to every editor instance, including
+		// editors other extensions install later. No wrap, no retry timer.
+		installMidlinePickerHook();
 	});
 
 	api.on("input", (event) => {
