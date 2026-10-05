@@ -82,20 +82,35 @@ interface Collapsible {
 	getCollapsedText?: () => string;
 }
 
+interface TextBuilder {
+	/** Pi 1.0 `ThemedText` keeps its text in this closure. `ExpandableText`
+	 * passes `() => (expanded ? expandedText : collapsedText)`, so at
+	 * startup capture time this returns the collapsed `[Section]` block. */
+	build?: () => string;
+}
+
 function isSpacer(child: Component): boolean {
 	return typeof (child as { setLines?: unknown }).setLines === "function";
 }
 
-/** Read one collapsed `[Section]` row, or return undefined when absent. */
+/** Read one `[Section]` row, or return undefined when absent. */
 function readSection(
 	child: Component,
 ): { name: string; items: string[] } | undefined {
-	const getCollapsedText = (child as Collapsible).getCollapsedText;
-	if (typeof getCollapsedText !== "function") return undefined;
-	return parseSection(getCollapsedText.call(child));
+	const legacy = (child as Collapsible).getCollapsedText;
+	if (typeof legacy === "function") return parseSection(legacy.call(child));
+	const build = (child as TextBuilder).build;
+	if (typeof build !== "function") return undefined;
+	try {
+		return parseSection(build.call(child));
+	} catch {
+		return undefined;
+	}
 }
 
-/** Parse one collapsed `[Section]\n  a, b, c` block into its name and items. */
+/** Parse one `[Section]` block into its name and items.
+ * Collapsed bodies are one comma-joined line; expanded bodies are one item
+ * per line. Split each line on commas so both shapes work. */
 export function parseSection(
 	text: string,
 ): { name: string; items: string[] } | undefined {
@@ -104,9 +119,8 @@ export function parseSection(
 	const heading = /^ *\[([^\]]+)\] *$/.exec(firstLine);
 	if (!heading?.[1]) return undefined;
 	const bodyLines = plain.split("\n").slice(1);
-	const body = bodyLines.join(" ");
-	const items = body
-		.split(",")
+	const items = bodyLines
+		.flatMap((line) => line.split(","))
 		.map((item) => item.trim())
 		.filter(Boolean);
 	return { name: heading[1], items: [...new Set(items)] };
