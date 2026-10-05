@@ -1,0 +1,6 @@
+{
+  "name": "minimal-ui",
+  "version": "0.1.0",
+  "description": "Collapses each tool call to one line; a click or /expand shows the full row",
+  "types": "./types/index.d.ts"
+}

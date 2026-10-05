@@ -4,6 +4,18 @@ This repository is the single source of truth for:
 
 - Global instructions: `AGENTS.md`
 - Global skills: `.agents/skills/`
+- Claude Code mods: `.claude/mods/`
+- Claude Code global settings: `.claude/global-settings.json`
+
+`sync-claude.sh` syncs the two Claude Code items:
+
+```text
+.claude/mods/ ──> ~/.claude/mods (symlink)
+.claude/global-settings.json ──> merged into ~/.claude/settings.json (jq)
+.claude/mods/<mod>/ ──> listed in ~/.claude/settings.json env.CLAUDE_CODE_PLUGIN_DIRS
+```
+
+`CLAUDE_CODE_PLUGIN_DIRS` takes plugin folders, not a parent folder. So the script lists each mod. Keys that are not in `global-settings.json` stay as they are.
 
 All agents connect to this repository through symlinks (`~/.agents`).
 
