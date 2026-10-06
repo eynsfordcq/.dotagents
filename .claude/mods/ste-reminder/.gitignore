@@ -1,0 +1,3 @@
+# Claude Code writes these on each load.
+.claude-plugin/types/
+tsconfig.json

@@ -1,0 +1,5 @@
+{
+  "name": "ste-reminder",
+  "version": "0.1.0",
+  "description": "Appends an ASD-STE100 reminder line to every third prompt you type"
+}
