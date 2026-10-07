@@ -1,6 +1,5 @@
 npm:pi-web-access
 npm:@narumitw/pi-btw
-npm:pi-context-view
 npm:@aliou/pi-guardrails
 npm:pi-local-stats
 npm:pi-zentui
