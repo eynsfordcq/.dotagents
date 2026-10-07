@@ -13,509 +13,193 @@ metadata:
 
 # Python Coding Standards
 
-> Non-formatter rules only. Formatting (indentation, line length, whitespace, blank lines) is handled by **Ruff/Black** — run it, don't discuss it.
+Apply these rules to non-test Python code. Use Ruff and Black for general formatting. Apply the layout preferences in **Taste** separately.
 
 ## Imports
 
-**Use `import x` or `from x import y` — never import individual classes or functions directly from deep paths unless aliasing.**
-
-```python
-# Yes
-from absl import flags
-from sound.effects import echo
-
-# No — ambiguous origin, hard to grep
-from sound.effects.echo import EchoFilter
-```
-
-**No relative imports.** Always use the full package path, even within the same package. Relative imports cause double-import bugs that are silent and hard to track down.
-
-```python
-# Yes
-from myproject.utils import helpers
-
-# No
-from . import helpers
-```
-
-**Standard aliases only.** Use `import numpy as np`, `import pandas as pd` — aliases the whole team recognizes. Don't invent your own.
-
-**Import order (enforced by Ruff, but understand the intent):**
-
-1. `__future__`
-2. Standard library
-3. Third-party
-4. Internal packages
-
----
+- Use full package paths, including imports within the same package. Do not use relative imports.
+- Import classes or functions directly when their names or established conventions make their purpose clear.
+- Import modules when generic names need context or when module prefixes prevent name conflicts.
+- Use standard aliases, such as `np` for NumPy and `pd` for pandas. Do not invent aliases.
+- Order imports by group: `__future__`, standard library, third-party packages, then internal packages. Let Ruff enforce this order.
 
 ## Exceptions
 
-**Use specific exception types.** Never catch `Exception` or bare `except:` unless you are explicitly re-raising or implementing an isolation boundary (e.g., a thread's outermost loop).
-
-```python
-# Yes — specific, re-raised
-try:
-    result = call_external_service()
-except requests.Timeout:
-    logging.warning('Service timed out, retrying.')
-    raise
-
-# No — swallows everything, including KeyboardInterrupt and SystemExit
-try:
-    result = call_external_service()
-except:
-    pass
-```
-
-**Don't use `assert` for runtime validation.** Asserts are stripped with `-O`. Use `raise ValueError` for precondition checks in production code. Reserve `assert` for pytest tests.
-
-```python
-# Yes
-if minimum < 1024:
-    raise ValueError(f'Min. port must be at least 1024, not {minimum}.')
-
-# No — silently skipped in optimized builds
-assert minimum >= 1024
-```
-
-**Keep `try` blocks minimal.** Only wrap the call that can actually raise. A fat `try` block hides bugs in the code you didn't expect to fail.
-
-**Custom exceptions must inherit from an existing exception class and end in `Error`.**
-
-```python
-class InsufficientQuotaError(RuntimeError):
-    """Raised when a tenant exceeds their allocated quota."""
-```
-
----
+- Catch specific exception types.
+- Catch `Exception` only when you re-raise it or isolate failures at an outer execution boundary, such as a thread entry point.
+- Never use bare `except:`.
+- Use explicit exceptions for runtime validation. Reserve `assert` for tests because Python removes assertions when it runs with `-O`.
+- Limit each `try` block to operations that can raise the expected exception.
+- Make custom exceptions inherit from an existing exception class. End their names with `Error`.
 
 ## Global State
 
-**Avoid mutable global state.** It breaks encapsulation, complicates testing, and causes subtle import-time side effects.
-
-**Module-level constants are fine and encouraged.** Name them `ALL_CAPS_WITH_UNDERSCORES`. Prefix internal ones with `_`.
-
-```python
-_MAX_RETRY_ATTEMPTS = 3        # internal
-DEFAULT_TIMEOUT_SECONDS = 30   # public API
-```
-
-If mutable global state is genuinely necessary (rare), prefix it with `_`, document *why* in a comment, and expose it only through functions or class methods.
-
----
+- Avoid mutable global state.
+- Use module-level constants when appropriate. Name constants with `ALL_CAPS_WITH_UNDERSCORES`. Prefix internal constants with `_`.
+- If mutable global state is necessary, prefix its name with `_` and explain why it exists.
+- Expose mutable global state only through functions or class methods.
 
 ## Functions and Classes
 
-**No mutable default arguments.** This is a classic Python footgun — the default is evaluated once at import time and shared across all calls.
-
-```python
-# Yes
-def process(items: list[str] | None = None) -> None:
-    if items is None:
-        items = []
-
-# No — all callers share the same list object
-def process(items: list[str] = []) -> None:
-    ...
-```
-
-**Prefer small, focused functions.** ~40 lines is a soft ceiling. If you need a comment to explain what a block *does*, that block is probably a function.
-
-**No `staticmethod` unless integrating with an existing external API.** Write a module-level function instead — it's easier to test and import. Use `classmethod` only for named constructors or class-scoped cache management.
-
-**Properties are for trivial, cheap logic only.** If computation is non-trivial, use an explicit method. Properties that hide side effects or expensive work violate caller expectations.
-
-**Use `*args` and `**kwargs` sparingly.** They erase type information and make function contracts ambiguous. If your function logically takes a collection, say so explicitly.
-
-```python
-# Yes — typed, documentable, statically checkable
-def send(message: str, recipients: list[str]) -> None:
-    ...
-
-# No — callers can't tell what to pass, type checkers can't help
-def send(message: str, *recipients) -> None:
-    ...
-```
-
-Reserve `*args`/`**kwargs` for genuine passthrough cases (decorators, wrappers, base class delegation).
-
-**Return values: guard early, converge late.** Use guard clauses to handle invalid inputs and edge cases at the top of a function. For the main success path, aim for a single exit point — it keeps state transitions easy to follow and simplifies debugging.
-
-```python
-# Yes
-def process_order(order: Order) -> Receipt:
-    if order is None:
-        raise ValueError('order must not be None.')
-    if not order.items:
-        raise ValueError('order must contain at least one item.')
-
-    # Single happy-path exit below
-    total = sum(item.price for item in order.items)
-    receipt = Receipt(order_id=order.id, total=total)
-    return receipt
-
-# No — success and error paths interleaved, multiple scattered returns
-def process_order(order: Order) -> Receipt:
-    if order is not None:
-        if order.items:
-            total = sum(item.price for item in order.items)
-            return Receipt(order_id=order.id, total=total)
-        else:
-            return None
-    return None
-```
-
----
+- Never use mutable default arguments. Use `None` and create the collection inside the function.
+- Keep functions focused. Treat approximately 40 lines as a soft limit.
+- Extract a function when a block needs a comment to explain what it does.
+- Prefer module-level functions over `staticmethod`. Use `staticmethod` only when an existing external API requires it.
+- Use `classmethod` only for named constructors or cache management within a class.
+- Use properties only for simple, inexpensive logic. Use explicit methods for expensive work or side effects.
+- Prefer explicit, typed parameters over `*args` and `**kwargs`.
+- Reserve `*args` and `**kwargs` for forwarding arguments through decorators, wrappers, or base-class calls.
+- Handle invalid inputs and edge cases early with guard clauses, which return or raise before the main logic.
+- Prefer one return point for the main success path. Do not force error paths through that return point.
 
 ## Comprehensions and Generators
 
-**One `for` clause, one optional `if` clause.** Multiple `for` clauses in a comprehension are a readability trap. Use a regular loop.
-
-```python
-# Yes
-result = [transform(x) for x in items if x is not None]
-
-# No
-result = [(x, y) for x in range(10) for y in range(5) if x * y > 10]
-```
-
-**Use generators when you don't need a materialized list.** Especially for large data pipelines — they avoid holding everything in memory.
-
-**Never use a list comprehension purely for its side effects (e.g., `[print(x) for x in seq]`).** If you aren't using the returned list, use a standard for loop.
-
-**If a generator manages an expensive resource (DB cursor, file handle), wrap it in a context manager.** Don't rely on garbage collection to close it.
-
----
+- Limit comprehensions to one `for` clause and one optional, simple `if` clause.
+- Use a regular loop when expressions or conditions become complex, or when iteration requires nesting.
+- Never use a comprehension only for side effects.
+- Use generators when you do not need a complete collection in memory.
+- Use a context manager when a generator manages a resource that needs closing. Do not depend on garbage collection.
 
 ## Iteration and Data Structures
 
-**Never use `range(len(sequence))` to iterate with an index.** Use `enumerate`.
-
-```python
-# Yes
-for i, item in enumerate(records):
-    print(f'{i}: {item}')
-
-# No
-for i in range(len(records)):
-    print(f'{i}: {records[i]}')
-```
-
-**Don't use `in` for repeated membership tests on a list.** List `in` is O(n). If you're doing repeated lookups or the collection is large, convert to a `set` or `dict` first.
-
-```python
-# Yes — O(1) per lookup
-allowed = set(load_allowed_ids())
-filtered = [r for r in records if r.id in allowed]
-
-# No — O(n) per lookup, O(n²) overall
-allowed = load_allowed_ids()
-filtered = [r for r in records if r.id in allowed]
-```
-
-**Don't trap `KeyError` for standard dict lookups.** Use `key in dict` or `dict.get(key, default)` instead.
-
-```python
-# Yes
-value = config.get('timeout', 30)
-
-if 'timeout' in config:
-    value = config['timeout']
-
-# No — verbose and the exception path is not exceptional
-try:
-    value = config['timeout']
-except KeyError:
-    value = 30
-```
-
-**Use structural unpacking to extract values.** Use `_` for values you're intentionally discarding.
-
-```python
-# Yes
-first, *middle, last = sequence
-_, _, error_code = get_status()
-x, y = point
-
-# No
-first = sequence[0]
-last = sequence[-1]
-error_code = get_status()[2]
-```
-
----
+- Use `enumerate` when iteration needs an index. Do not use `range(len(sequence))`.
+- Use a `set` or `dict` for repeated membership checks, especially with large collections.
+- Use `key in mapping` or `mapping.get(key, default)` for standard dictionary lookups. Do not catch `KeyError` for these lookups.
+- Use unpacking to extract values from a sequence. Use `_` for values you intentionally discard.
 
 ## Truth Testing
 
-**Use implicit boolean evaluation for emptiness.** Don't call `len()` as a boolean guard.
+- Use implicit boolean checks for empty collections, such as `if not users:`. Do not use `len()` as a boolean guard.
+- Use `is None` and `is not None` for `None` checks. False values, such as `0`, are not necessarily `None`.
+- Use `if value:` or `if not value:` for booleans. Do not compare booleans with `==`.
+- Prefer `count == 0` for numeric values that do not come from `len()`.
 
-```python
-# Yes
-if not users:
-    ...
-if results:
-    ...
+## Strings and Logging
 
-# No
-if len(users) == 0:
-    ...
-if len(results) > 0:
-    ...
-```
-
-**Always use `is None` / `is not None` for None checks.** An object might be falsy but not `None` — these are different conditions.
-
-```python
-# Yes
-if value is None:
-    value = default
-
-# No — fails silently if value is 0, False, or ""
-if not value:
-    value = default
-```
-
-**Never compare booleans with `==`.** Use `if x:` / `if not x:`.
-
-**Exception: integers that aren't from `len()`.** `if count == 0:` is clearer than `if not count:` when `count` is a numeric value.
-
----
-
-## Strings
-
-**Use f-strings for interpolation.** `%` and `.format()` are acceptable but f-strings are the standard for new code.
-
-```python
-# Yes
-raise ValueError(f'Expected positive int, got {value!r}.')
-
-# No
-raise ValueError('Expected positive int, got %r.' % value)
-```
-
-**Don't accumulate strings in a loop with `+`.** Use a list and `''.join()` or write to `io.StringIO`.
-
-```python
-# Yes
-parts = []
-for row in rows:
-    parts.append(format_row(row))
-output = '\n'.join(parts)
-
-# No — O(n²) in the worst case
-output = ''
-for row in rows:
-    output += format_row(row) + '\n'
-```
-
-**Logging: always pass the format string separately.** Don't use f-strings as the first argument to a logger. The logger needs the unexpanded template for structured log systems (e.g., Cloud Logging, Datadog).
-
-```python
-# Yes
-logging.info('Processing batch %d of %d', current, total)
-
-# No
-logging.info(f'Processing batch {current} of {total}')
-```
-
----
+- Prefer f-strings for new interpolation code. Existing `%` and `.format()` calls are acceptable.
+- Do not accumulate strings with `+` in a loop. Collect parts and use `''.join()`, or write to `io.StringIO`.
+- Pass logging templates and arguments separately, such as `logging.info('Processing batch %d', batch)`.
+- Do not use f-strings as logging templates. Separate arguments preserve the template for structured logging systems.
 
 ## Resource Management
 
-**Always use `with` statements for files, sockets, DB connections, and any closeable resource.** Relying on `__del__` for cleanup is unreliable across Python implementations.
-
-```python
-# Yes
-with open(path) as f:
-    data = f.read()
-
-# No
-f = open(path)
-data = f.read()
-f.close()
-```
-
-For objects that don't support `with` natively, use `contextlib.closing()`.
-
----
+- Use `with` for files, sockets, database connections, and other resources that need closing.
+- Use `contextlib.closing()` when a resource provides `close()` but does not support `with`.
+- Do not depend on `__del__` to close resources.
 
 ## Type Annotations
 
-**Annotate params and return on every function definition.** At minimum the `def` line must be fully typed.
+- Annotate every function parameter and return value.
+- Prefer `X | None` over `Optional[X]` in Python 3.10 and later.
+- Prefer abstract parameter types, such as `Sequence[str]`, and concrete return types, such as `list[str]`.
+- Use built-in generics, such as `list[str]`, `dict[str, int]`, and `tuple[int, ...]`.
+- Do not use the deprecated aliases `typing.List`, `typing.Dict`, or `typing.Tuple`.
+- Annotate variables when the type cannot be inferred.
+- Use `TypeAlias` for complex, reusable types. Name type aliases with `CapWords`.
+- Give each `TypeVar` a descriptive name unless it is private and unconstrained, such as `_T`.
 
-**Use `X | None` over `Optional[X]`.** The union syntax is cleaner and is the standard in Python 3.10+.
+## Naming and Encapsulation
 
-```python
-def find_user(user_id: int) -> User | None:
-    ...
-```
-
-**Use abstract types for parameters, concrete types for return values.**
-
-```python
-from collections.abc import Sequence, Mapping
-
-# Yes — callers can pass list, tuple, etc.
-def process(items: Sequence[str]) -> list[str]:
-    ...
-
-# No — unnecessarily restrictive
-def process(items: list[str]) -> list[str]:
-    ...
-```
-
-**Use built-in generics directly (`list[str]`, `dict[str, int]`, `tuple[int, ...]`).** Do not use `typing.List`, `typing.Dict`, `typing.Tuple` — these are deprecated aliases.
-
-**Annotate variables when type can't be inferred.**
-
-```python
-results: list[str] = some_opaque_function()
-```
-
-**Use `TypeAlias` for complex reusable types.** Name them `CapWords`.
-
-```python
-from typing import TypeAlias
-_BatchResult: TypeAlias = tuple[list[str], list[Exception]]
-```
-
-**`TypeVar` must have a descriptive name unless it's private and unconstrained.**
-
-```python
-_T = TypeVar('_T')                           # fine — private, unconstrained
-AddableType = TypeVar('AddableType', int, float, str)  # descriptive — constrained
-```
-
----
-
-## Naming
+Use these naming conventions:
 
 | Entity | Convention | Example |
 |---|---|---|
-| Package / Module | `lower_with_under` | `data_pipeline` |
-| Class / Exception | `CapWords` | `BatchProcessor`, `QuotaExceededError` |
-| Function / Method | `lower_with_under` | `fetch_records()` |
-| Constant (global/class) | `CAPS_WITH_UNDER` | `MAX_BATCH_SIZE` |
-| Instance / local variable | `lower_with_under` | `retry_count` |
-| Internal (module/class) | prefix `_` | `_build_query()` |
+| Package or module | Use `lower_with_under`. | `data_pipeline` |
+| Class or exception | Use `CapWords`. | `BatchProcessor`, `QuotaExceededError` |
+| Function or method | Use `lower_with_under`. | `fetch_records()` |
+| Global or class constant | Use `CAPS_WITH_UNDER`. | `MAX_BATCH_SIZE` |
+| Instance or local variable | Use `lower_with_under`. | `retry_count` |
+| Internal member | Prefix the name with `_`. | `_build_query()` |
 
-**Never use double-underscore (`__dunder`) for your own attributes.** It triggers name mangling, hurts testability, and isn't actually private. Use single `_`.
-
-**Respect encapsulation by convention.** Python has no `private` keyword — we rely on the `_` prefix as a contract. Do not access `_prefixed` members across domain boundaries. If you find yourself reaching into another module's internals, that's a signal the public API is missing something; fix the API, don't bypass the boundary.
-
-**Avoid type information in names.** `user_dict`, `id_list`, `name_str` — don't do this. The type annotation is the right place for that information.
-
-**Don't abbreviate unless the abbreviation is universally understood in the domain** (`http`, `url`, `db`, `cfg` — fine; `prcs`, `mgr`, `hndlr` — not fine).
-
----
+- Do not use double-underscore prefixes for your own attributes. Use a single `_` instead.
+- Respect encapsulation: access internal members only within their domain. The `_` prefix marks this boundary by convention.
+- Improve the public API instead of accessing another domain's internal members.
+- Do not encode types in names, such as `user_dict` or `name_str`. Use type annotations instead.
+- Use abbreviations only when the domain widely recognizes them, such as `http`, `url`, `db`, or `cfg`.
 
 ## Module Structure
 
-**Every module that can be executed must guard its entry point.**
-
-```python
-def main() -> None:
-    ...
-
-if __name__ == '__main__':
-    main()
-```
-
-**Top-level code runs on import.** Don't put function calls, network I/O, or object instantiation at module level — it breaks `pydoc`, tests, and any tool that imports your module.
-
----
+- Guard executable entry points with `if __name__ == '__main__':`.
+- Do not perform network I/O, call functions, or create objects at module level. These operations run during import.
 
 ## Docstrings
 
-**Docstrings are mandatory for:**
-
-- All public functions, methods, classes, and modules
-- Any function with non-obvious logic or non-trivial size
-
-**Format: one-line summary (ends with `.`), blank line, then body.**
-
-```python
-def fetch_records(table: str, limit: int = 100) -> list[dict]:
-    """Fetches records from the given table up to the specified limit.
-
-    Args:
-        table: The fully qualified table name.
-        limit: Maximum number of records to return.
-
-    Returns:
-        A list of dicts, one per row, keyed by column name.
-
-    Raises:
-        ConnectionError: If the database is unreachable.
-    """
-```
-
-**`@override` methods don't need a docstring** unless the behavior materially changes. In that case, document the difference only.
-
-**Generator functions use `Yields:` not `Returns:`.**
-
----
+- Document all public functions, methods, and classes.
+- Add a module docstring at the top of a file only when the user requests it.
+- Document other functions when their logic is difficult to understand or their size is substantial.
+- Start with a one-line summary that ends with a period. Separate an optional body from the summary with a blank line.
+- Use `Args:`, `Returns:`, and `Raises:` sections when applicable.
+- Use `Yields:` instead of `Returns:` for generator functions.
+- Omit docstrings for `@override` methods unless their behavior changes substantially. Document only the difference when it changes.
+- Apply the layout preference in **Taste**.
 
 ## Comments
 
-**Comments explain *why*, not *what*.** If you need to explain what the code is doing, the code is unclear — rewrite it.
+- Explain why the code exists, not what it does. Rewrite unclear code instead of explaining its operations.
+- Link each TODO comment to a GitLab issue. Do not use a username as the only context.
 
 ```python
-# Yes — explains non-obvious reasoning
-# Bitwise check: x & (x-1) == 0 is true only for powers of 2 and zero.
-if x & (x - 1) == 0:
-
-# No — describes the code, adds no value
-# Check if x is a power of 2
-if x & (x - 1) == 0:
+# TODO: https://gitlab.example.com/group/project/-/issues/123 - Replace this implementation with streaming.
 ```
-
-**TODO format:**
-
-```python
-# TODO: https://issue-tracker/123 - Replace with streaming implementation once API is stable.
-```
-
-Always link to a ticket (gitlab issue). Never use a username alone as the context.
-
----
 
 ## Threading
 
-**Don't rely on the atomicity of built-in types.** Dict operations look atomic but aren't in all cases (custom `__hash__`, `__eq__`).
+- Do not assume built-in operations are atomic, meaning they execute as one indivisible operation.
+- Custom `__hash__` and `__eq__` methods can affect dictionary operations.
+- Use `queue.Queue` to pass data between threads.
+- Prefer `threading.Condition` over raw locks for coordination. Do not create custom synchronization primitives.
 
-**Use `queue.Queue` to pass data between threads.** Use `threading.Condition` over raw locks for coordination. Don't roll your own synchronization primitives.
+## Features to Avoid
 
----
-
-## Things to Avoid
-
-- **`eval`, `exec`, custom metaclasses, `__del__`, bytecode manipulation.** These are power features that are nearly impossible to debug or reason about. Standard library uses of them (`dataclasses`, `abc`, `enum`) are fine.
-- **`lambda` for anything longer than a simple expression.** Define a named function.
-- **`operator.mul` over `lambda x, y: x * y`** for common operations.
-- **Nested functions that exist only to hide module-level helpers.** Prefix with `_` at module level instead — it's still testable.
-
----
+- Avoid `eval`, `exec`, custom metaclasses, `__del__`, and bytecode manipulation.
+- Standard library abstractions that use these features, such as `dataclasses`, `abc`, and `enum`, are acceptable.
+- Use lambdas only for simple expressions. Use named functions for more complex logic.
+- Prefer standard operator functions, such as `operator.mul`, over equivalent lambdas.
+- Do not nest functions only to hide helpers. Define module-level helpers with an `_` prefix instead.
 
 ## Taste
 
-Personal preferences, not hard standards. Prefer them when they do not fight a clearer local convention.
+These preferences apply unless a local convention makes the code clearer.
 
-- **Logical blank lines:** Put a blank line between logical steps. Never cram everything together.
-- **Simple comprehensions only:** A comprehension is fine with a short expression and one simple condition. If the expression is long, the condition is compound, or you need nesting, use a plain loop. Readable beats short.
-- **Explicit over magic:** Prefer constructors with visible arguments over helpers that read env vars or global config implicitly. A reader must see the inputs at the call site.
+- Put opening and closing docstring quotes on separate lines. Start the summary after the opening quotes, even for one-sentence docstrings.
 
 ```python
-# Yes — all inputs visible at the call site
-ChatOpenAI(
-    model=...,
-    base_url=...,
-    api_key=...,
-    temperature=...,
-    timeout=...,
-)
+"""
+Summary text.
 
-# No — model, key, and endpoint hide in env vars
+More details.
+"""
+```
+
+- If a parameter or argument list spans multiple lines, put each parameter or argument on a separate line.
+- Apply this layout to function definitions, method definitions, and all calls, including logging calls.
+- Add a trailing comma after the last parameter or argument. Put the closing parenthesis on a separate line.
+- Keep single-line definitions and calls when they fit.
+
+```python
+def fetch_existing(
+    connection: opensearchpy.OpenSearch,
+    index: str,
+    ids: list[str],
+) -> dict[str, Any]:
+    ...
+
+logger.info(
+    "Wrote %d rows to %s in %.3f seconds.",
+    args.rows,
+    path,
+    perf_counter() - start,
+)
+```
+
+- Put a blank line between logical steps.
+- Prefer constructors with explicit arguments over helpers that read environment variables or global configuration implicitly.
+- Make configuration inputs visible at the call site.
+
+```python
+# Prefer explicit configuration.
+ChatOpenAI(model=model, api_key=api_key, base_url=base_url)
+
+# Avoid implicit configuration.
 init_chat_model()
 ```
