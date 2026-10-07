@@ -16,6 +16,7 @@ const PROMPT_SNIPPET = "Manage a task list to track multi-step progress";
 
 const PROMPT_GUIDELINES: string[] = [
 	"Use `todo` for complex work with 3+ steps, when the user gives you a list of tasks, or immediately after receiving new instructions to capture requirements. Skip it for single trivial tasks and purely conversational requests.",
+	"Batch independent work in one call: create a whole list with one `create` call using `tasks`, change several tasks with one `update` call using `updates`, and read or remove several tasks with one call using `ids`. Never send one call per task.",
 	"When starting a task from the todo list, mark it in_progress BEFORE beginning work. Mark it completed IMMEDIATELY when done — never batch completions. Exactly one task in_progress at a time.",
 	"Never mark a task completed if tests are failing, the implementation is partial, or you hit unresolved errors — keep it in_progress and create a new task for the blocker instead.",
 	"Task status is a 4-state machine: pending → in_progress → completed, plus deleted as a tombstone. Pass activeForm (present-continuous label, e.g. 'writing tests') when marking in_progress.",
@@ -26,7 +27,7 @@ const PROMPT_GUIDELINES: string[] = [
 ];
 
 const TOOL_DESCRIPTION =
-	"Manage a task list for tracking multi-step progress. Actions: create (new task), update (change status/fields/dependencies), list (all tasks, optionally filtered by status), get (single task details), delete (tombstone), clear (reset all). Status: pending → in_progress → completed, plus deleted tombstone. Use this to plan and track multi-step work like research, design, and implementation.";
+	"Manage a task list for tracking multi-step progress. Actions: create (one task via subject, or many via tasks[]), update (one task via id plus fields, or many via updates[]), list (all tasks, optionally filtered by status), get (one task via id, or many via ids[]), delete (one task via id, or many via ids[]), clear (reset all). Status: pending → in_progress → completed, plus deleted tombstone. Use this to plan and track multi-step work like research, design, and implementation.";
 
 const MAX_WIDGET_LINES = 12;
 
@@ -58,6 +59,27 @@ interface TaskDetails {
 	error?: string;
 }
 
+interface TaskInput {
+	subject: string;
+	description?: string;
+	activeForm?: string;
+	blockedBy?: number[];
+	owner?: string;
+	metadata?: Record<string, unknown>;
+}
+
+interface TaskUpdateInput {
+	id: number;
+	subject?: string;
+	description?: string;
+	activeForm?: string;
+	status?: TaskStatus;
+	owner?: string;
+	metadata?: Record<string, unknown>;
+	addBlockedBy?: number[];
+	removeBlockedBy?: number[];
+}
+
 interface TaskMutationParams {
 	[key: string]: unknown;
 	subject?: string;
@@ -71,6 +93,9 @@ interface TaskMutationParams {
 	metadata?: Record<string, unknown>;
 	id?: number;
 	includeDeleted?: boolean;
+	tasks?: TaskInput[];
+	updates?: TaskUpdateInput[];
+	ids?: number[];
 }
 
 interface TaskState {
@@ -79,6 +104,78 @@ interface TaskState {
 }
 
 const EMPTY_STATE: TaskState = { tasks: [], nextId: 1 };
+
+const TaskInputSchema = Type.Object({
+	subject: Type.String({ description: "Task subject line" }),
+	description: Type.Optional(
+		Type.String({ description: "Long-form task description" }),
+	),
+	activeForm: Type.Optional(
+		Type.String({
+			description:
+				"Present-continuous spinner label shown while status is in_progress (e.g. 'writing tests')",
+		}),
+	),
+	blockedBy: Type.Optional(
+		Type.Array(Type.Number(), {
+			description: "Initial blockedBy ids (create only)",
+		}),
+	),
+	owner: Type.Optional(
+		Type.String({ description: "Agent/owner assigned to this task" }),
+	),
+	metadata: Type.Optional(
+		Type.Record(Type.String(), Type.Unknown(), {
+			description: "Arbitrary metadata",
+		}),
+	),
+});
+
+const TaskUpdateInputSchema = Type.Object({
+	id: Type.Number({ description: "Task id" }),
+	subject: Type.Optional(
+		Type.String({ description: "Task subject line" }),
+	),
+	description: Type.Optional(
+		Type.String({ description: "Long-form task description" }),
+	),
+	activeForm: Type.Optional(
+		Type.String({
+			description:
+				"Present-continuous spinner label shown while status is in_progress (e.g. 'writing tests')",
+		}),
+	),
+	status: Type.Optional(
+		Type.Union(
+			[
+				Type.Literal("pending"),
+				Type.Literal("in_progress"),
+				Type.Literal("completed"),
+				Type.Literal("deleted"),
+			],
+			{ description: "Set this task's status" },
+		),
+	),
+	owner: Type.Optional(
+		Type.String({ description: "Agent/owner assigned to this task" }),
+	),
+	metadata: Type.Optional(
+		Type.Record(Type.String(), Type.Unknown(), {
+			description:
+				"Arbitrary metadata; pass null value for a key to delete that key on update",
+		}),
+	),
+	addBlockedBy: Type.Optional(
+		Type.Array(Type.Number(), {
+			description: "Task ids to add to blockedBy (additive merge)",
+		}),
+	),
+	removeBlockedBy: Type.Optional(
+		Type.Array(Type.Number(), {
+			description: "Task ids to remove from blockedBy (additive merge)",
+		}),
+	),
+});
 
 const TodoParamsSchema = Type.Object({
 	action: Type.Union(
@@ -150,6 +247,27 @@ const TodoParamsSchema = Type.Object({
 		Type.Boolean({
 			description:
 				"If true, list action returns deleted (tombstoned) tasks as well. Default: false.",
+		}),
+	),
+	tasks: Type.Optional(
+		Type.Array(TaskInputSchema, {
+			description:
+				"Tasks to create in one call (create only; use instead of subject)",
+			minItems: 1,
+		}),
+	),
+	updates: Type.Optional(
+		Type.Array(TaskUpdateInputSchema, {
+			description:
+				"Tasks to update in one call (update only; use instead of id and shared fields)",
+			minItems: 1,
+		}),
+	),
+	ids: Type.Optional(
+		Type.Array(Type.Number(), {
+			description:
+				"Task ids for one call on many tasks (delete and get only; use instead of id)",
+			minItems: 1,
 		}),
 	),
 });
@@ -245,6 +363,10 @@ type Op =
 	| { kind: "list"; statusFilter?: TaskStatus; includeDeleted: boolean }
 	| { kind: "get"; task: Task }
 	| { kind: "clear"; count: number }
+	| { kind: "createMany"; ids: number[]; errors: string[] }
+	| { kind: "updateMany"; ids: number[]; errors: string[] }
+	| { kind: "deleteMany"; ids: number[]; errors: string[] }
+	| { kind: "getMany"; found: Task[]; missing: number[] }
 	| { kind: "error"; message: string };
 
 interface ApplyResult {
@@ -284,6 +406,164 @@ function taskChanged(before: Task, after: Task): boolean {
 	);
 }
 
+function createSingleTask(state: TaskState, input: TaskInput): ApplyResult {
+	if (typeof input.subject !== "string" || !input.subject.trim())
+		return errorResult(state, "subject required for create");
+	if (input.blockedBy?.length) {
+		for (const dep of input.blockedBy) {
+			const depTask = state.tasks.find((t) => t.id === dep);
+			if (!depTask)
+				return errorResult(state, `blockedBy: #${dep} not found`);
+			if (depTask.status === "deleted")
+				return errorResult(state, `blockedBy: #${dep} is deleted`);
+		}
+	}
+	const newTask: Task = {
+		id: state.nextId,
+		subject: input.subject,
+		status: "pending",
+	};
+	if (input.description) newTask.description = input.description;
+	if (input.activeForm) newTask.activeForm = input.activeForm;
+	if (input.blockedBy?.length) newTask.blockedBy = [...input.blockedBy];
+	if (input.owner) newTask.owner = input.owner;
+	if (input.metadata) newTask.metadata = { ...input.metadata };
+	return {
+		state: { tasks: [...state.tasks, newTask], nextId: state.nextId + 1 },
+		op: { kind: "create", taskId: newTask.id },
+	};
+}
+
+function updateSingleTask(
+	state: TaskState,
+	id: number,
+	fields: Omit<TaskUpdateInput, "id">,
+): ApplyResult {
+	const idx = state.tasks.findIndex((t) => t.id === id);
+	if (idx === -1) return errorResult(state, `#${id} not found`);
+	const current = state.tasks[idx];
+	const hasMutation =
+		fields.subject !== undefined ||
+		fields.description !== undefined ||
+		fields.activeForm !== undefined ||
+		fields.status !== undefined ||
+		fields.owner !== undefined ||
+		fields.metadata !== undefined ||
+		(fields.addBlockedBy && fields.addBlockedBy.length > 0) ||
+		(fields.removeBlockedBy && fields.removeBlockedBy.length > 0);
+	if (!hasMutation) {
+		return errorResult(
+			state,
+			"update requires at least one mutable field: subject, description, activeForm, status, owner, metadata, addBlockedBy, or removeBlockedBy",
+		);
+	}
+	let newStatus = current.status;
+	if (fields.status !== undefined) {
+		if (!isTransitionValid(current.status, fields.status)) {
+			return errorResult(
+				state,
+				`illegal transition ${current.status} → ${fields.status}`,
+			);
+		}
+		newStatus = fields.status;
+	}
+	let newBlockedBy = current.blockedBy ? [...current.blockedBy] : [];
+	if (fields.removeBlockedBy?.length) {
+		const toRemove = new Set(fields.removeBlockedBy);
+		newBlockedBy = newBlockedBy.filter((dep) => !toRemove.has(dep));
+	}
+	if (fields.addBlockedBy?.length) {
+		for (const dep of fields.addBlockedBy) {
+			if (dep === current.id)
+				return errorResult(state, `cannot block #${current.id} on itself`);
+			const depTask = state.tasks.find((t) => t.id === dep);
+			if (!depTask)
+				return errorResult(state, `addBlockedBy: #${dep} not found`);
+			if (depTask.status === "deleted")
+				return errorResult(state, `addBlockedBy: #${dep} is deleted`);
+			if (!newBlockedBy.includes(dep)) newBlockedBy.push(dep);
+		}
+		if (detectCycle(state.tasks, current.id, newBlockedBy)) {
+			return errorResult(
+				state,
+				"addBlockedBy would create a cycle in the blockedBy graph",
+			);
+		}
+	}
+	let newMetadata = current.metadata;
+	if (fields.metadata !== undefined) {
+		const merged: Record<string, unknown> = { ...(current.metadata ?? {}) };
+		for (const [k, v] of Object.entries(fields.metadata)) {
+			if (v === null) delete merged[k];
+			else merged[k] = v;
+		}
+		newMetadata = Object.keys(merged).length ? merged : undefined;
+	}
+	const updated: Task = { ...current, status: newStatus };
+	if (fields.subject !== undefined) updated.subject = fields.subject;
+	if (fields.description !== undefined)
+		updated.description = fields.description;
+	if (fields.activeForm !== undefined)
+		updated.activeForm = fields.activeForm;
+	if (fields.owner !== undefined) updated.owner = fields.owner;
+	if (newBlockedBy.length) updated.blockedBy = newBlockedBy;
+	else delete updated.blockedBy;
+	if (newMetadata === undefined) delete updated.metadata;
+	else updated.metadata = newMetadata;
+	const newTasks = [...state.tasks];
+	newTasks[idx] = updated;
+	return {
+		state: { tasks: newTasks, nextId: state.nextId },
+		op: {
+			kind: "update",
+			id: updated.id,
+			fromStatus: current.status,
+			toStatus: newStatus,
+			changed: taskChanged(current, updated),
+		},
+	};
+}
+
+function deleteSingleTask(state: TaskState, id: number): ApplyResult {
+	const idx = state.tasks.findIndex((t) => t.id === id);
+	if (idx === -1) return errorResult(state, `#${id} not found`);
+	const current = state.tasks[idx];
+	if (current.status === "deleted")
+		return errorResult(state, `#${current.id} is already deleted`);
+	const updated: Task = { ...current, status: "deleted" };
+	const newTasks = [...state.tasks];
+	newTasks[idx] = updated;
+	return {
+		state: { tasks: newTasks, nextId: state.nextId },
+		op: { kind: "delete", id: updated.id, subject: updated.subject },
+	};
+}
+
+function hasSingleCreateFields(params: TaskMutationParams): boolean {
+	return (
+		params.subject !== undefined ||
+		params.description !== undefined ||
+		params.activeForm !== undefined ||
+		params.blockedBy !== undefined ||
+		params.owner !== undefined ||
+		params.metadata !== undefined
+	);
+}
+
+function hasSingleUpdateFields(params: TaskMutationParams): boolean {
+	return (
+		params.id !== undefined ||
+		params.subject !== undefined ||
+		params.description !== undefined ||
+		params.activeForm !== undefined ||
+		params.status !== undefined ||
+		params.owner !== undefined ||
+		params.metadata !== undefined ||
+		params.addBlockedBy !== undefined ||
+		params.removeBlockedBy !== undefined
+	);
+}
+
 function applyTaskMutation(
 	state: TaskState,
 	action: TaskAction,
@@ -291,118 +571,83 @@ function applyTaskMutation(
 ): ApplyResult {
 	switch (action) {
 		case "create": {
+			if (params.tasks !== undefined) {
+				if (hasSingleCreateFields(params))
+					return errorResult(
+						state,
+						"create accepts either subject or tasks, not both",
+					);
+				if (params.updates !== undefined || params.ids !== undefined)
+					return errorResult(
+						state,
+						"create accepts only subject or tasks",
+					);
+				if (params.tasks.length === 0)
+					return errorResult(state, "tasks must not be empty");
+				let next = state;
+				const ids: number[] = [];
+				const errors: string[] = [];
+				params.tasks.forEach((item, index) => {
+					const result = createSingleTask(next, item);
+					next = result.state;
+					if (result.op.kind === "error")
+						errors.push(`item ${index + 1}: ${result.op.message}`);
+					else if (result.op.kind === "create") ids.push(result.op.taskId);
+				});
+				return { state: next, op: { kind: "createMany", ids, errors } };
+			}
 			if (!params.subject?.trim())
 				return errorResult(state, "subject required for create");
-			if (params.blockedBy?.length) {
-				for (const dep of params.blockedBy) {
-					const depTask = state.tasks.find((t) => t.id === dep);
-					if (!depTask)
-						return errorResult(state, `blockedBy: #${dep} not found`);
-					if (depTask.status === "deleted")
-						return errorResult(state, `blockedBy: #${dep} is deleted`);
-				}
-			}
-			const newTask: Task = {
-				id: state.nextId,
+			return createSingleTask(state, {
 				subject: params.subject,
-				status: "pending",
-			};
-			if (params.description) newTask.description = params.description;
-			if (params.activeForm) newTask.activeForm = params.activeForm;
-			if (params.blockedBy?.length) newTask.blockedBy = [...params.blockedBy];
-			if (params.owner) newTask.owner = params.owner;
-			if (params.metadata) newTask.metadata = { ...params.metadata };
-			return {
-				state: { tasks: [...state.tasks, newTask], nextId: state.nextId + 1 },
-				op: { kind: "create", taskId: newTask.id },
-			};
+				description: params.description,
+				activeForm: params.activeForm,
+				blockedBy: params.blockedBy,
+				owner: params.owner,
+				metadata: params.metadata,
+			});
 		}
 		case "update": {
+			if (params.updates !== undefined) {
+				if (hasSingleUpdateFields(params))
+					return errorResult(
+						state,
+						"update accepts either id or updates, not both",
+					);
+				if (params.tasks !== undefined || params.ids !== undefined)
+					return errorResult(
+						state,
+						"update accepts only id or updates",
+					);
+				if (params.updates.length === 0)
+					return errorResult(state, "updates must not be empty");
+				let next = state;
+				const ids: number[] = [];
+				const errors: string[] = [];
+				for (const item of params.updates) {
+					const { id: itemId, ...fields } = item;
+					const result = updateSingleTask(next, itemId, fields);
+					next = result.state;
+					if (result.op.kind === "error")
+						errors.push(`#${itemId}: ${result.op.message}`);
+					else if (result.op.kind === "update") ids.push(result.op.id);
+				}
+				return { state: next, op: { kind: "updateMany", ids, errors } };
+			}
+			if (params.tasks !== undefined || params.ids !== undefined)
+				return errorResult(state, "update accepts only id or updates");
 			if (params.id === undefined)
 				return errorResult(state, "id required for update");
-			const idx = state.tasks.findIndex((t) => t.id === params.id);
-			if (idx === -1) return errorResult(state, `#${params.id} not found`);
-			const current = state.tasks[idx];
-			const hasMutation =
-				params.subject !== undefined ||
-				params.description !== undefined ||
-				params.activeForm !== undefined ||
-				params.status !== undefined ||
-				params.owner !== undefined ||
-				params.metadata !== undefined ||
-				(params.addBlockedBy && params.addBlockedBy.length > 0) ||
-				(params.removeBlockedBy && params.removeBlockedBy.length > 0);
-			if (!hasMutation) {
-				return errorResult(
-					state,
-					"update requires at least one mutable field: subject, description, activeForm, status, owner, metadata, addBlockedBy, or removeBlockedBy",
-				);
-			}
-			let newStatus = current.status;
-			if (params.status !== undefined) {
-				if (!isTransitionValid(current.status, params.status)) {
-					return errorResult(
-						state,
-						`illegal transition ${current.status} → ${params.status}`,
-					);
-				}
-				newStatus = params.status;
-			}
-			let newBlockedBy = current.blockedBy ? [...current.blockedBy] : [];
-			if (params.removeBlockedBy?.length) {
-				const toRemove = new Set(params.removeBlockedBy);
-				newBlockedBy = newBlockedBy.filter((dep) => !toRemove.has(dep));
-			}
-			if (params.addBlockedBy?.length) {
-				for (const dep of params.addBlockedBy) {
-					if (dep === current.id)
-						return errorResult(state, `cannot block #${current.id} on itself`);
-					const depTask = state.tasks.find((t) => t.id === dep);
-					if (!depTask)
-						return errorResult(state, `addBlockedBy: #${dep} not found`);
-					if (depTask.status === "deleted")
-						return errorResult(state, `addBlockedBy: #${dep} is deleted`);
-					if (!newBlockedBy.includes(dep)) newBlockedBy.push(dep);
-				}
-				if (detectCycle(state.tasks, current.id, newBlockedBy)) {
-					return errorResult(
-						state,
-						"addBlockedBy would create a cycle in the blockedBy graph",
-					);
-				}
-			}
-			let newMetadata = current.metadata;
-			if (params.metadata !== undefined) {
-				const merged: Record<string, unknown> = { ...(current.metadata ?? {}) };
-				for (const [k, v] of Object.entries(params.metadata)) {
-					if (v === null) delete merged[k];
-					else merged[k] = v;
-				}
-				newMetadata = Object.keys(merged).length ? merged : undefined;
-			}
-			const updated: Task = { ...current, status: newStatus };
-			if (params.subject !== undefined) updated.subject = params.subject;
-			if (params.description !== undefined)
-				updated.description = params.description;
-			if (params.activeForm !== undefined)
-				updated.activeForm = params.activeForm;
-			if (params.owner !== undefined) updated.owner = params.owner;
-			if (newBlockedBy.length) updated.blockedBy = newBlockedBy;
-			else delete updated.blockedBy;
-			if (newMetadata === undefined) delete updated.metadata;
-			else updated.metadata = newMetadata;
-			const newTasks = [...state.tasks];
-			newTasks[idx] = updated;
-			return {
-				state: { tasks: newTasks, nextId: state.nextId },
-				op: {
-					kind: "update",
-					id: updated.id,
-					fromStatus: current.status,
-					toStatus: newStatus,
-					changed: taskChanged(current, updated),
-				},
-			};
+			return updateSingleTask(state, params.id, {
+				subject: params.subject,
+				description: params.description,
+				activeForm: params.activeForm,
+				status: params.status,
+				owner: params.owner,
+				metadata: params.metadata,
+				addBlockedBy: params.addBlockedBy,
+				removeBlockedBy: params.removeBlockedBy,
+			});
 		}
 		case "list": {
 			return {
@@ -417,6 +662,23 @@ function applyTaskMutation(
 			};
 		}
 		case "get": {
+			if (params.ids !== undefined) {
+				if (params.id !== undefined)
+					return errorResult(
+						state,
+						"get accepts either id or ids, not both",
+					);
+				if (params.ids.length === 0)
+					return errorResult(state, "ids must not be empty");
+				const found: Task[] = [];
+				const missing: number[] = [];
+				for (const itemId of new Set(params.ids)) {
+					const task = state.tasks.find((t) => t.id === itemId);
+					if (!task) missing.push(itemId);
+					else found.push(task);
+				}
+				return { state, op: { kind: "getMany", found, missing } };
+			}
 			if (params.id === undefined)
 				return errorResult(state, "id required for get");
 			const task = state.tasks.find((t) => t.id === params.id);
@@ -424,20 +686,29 @@ function applyTaskMutation(
 			return { state, op: { kind: "get", task } };
 		}
 		case "delete": {
+			if (params.ids !== undefined) {
+				if (params.id !== undefined)
+					return errorResult(
+						state,
+						"delete accepts either id or ids, not both",
+					);
+				if (params.ids.length === 0)
+					return errorResult(state, "ids must not be empty");
+				let next = state;
+				const ids: number[] = [];
+				const errors: string[] = [];
+				for (const itemId of new Set(params.ids)) {
+					const result = deleteSingleTask(next, itemId);
+					next = result.state;
+					if (result.op.kind === "error")
+						errors.push(`#${itemId}: ${result.op.message}`);
+					else if (result.op.kind === "delete") ids.push(result.op.id);
+				}
+				return { state: next, op: { kind: "deleteMany", ids, errors } };
+			}
 			if (params.id === undefined)
 				return errorResult(state, "id required for delete");
-			const idx = state.tasks.findIndex((t) => t.id === params.id);
-			if (idx === -1) return errorResult(state, `#${params.id} not found`);
-			const current = state.tasks[idx];
-			if (current.status === "deleted")
-				return errorResult(state, `#${current.id} is already deleted`);
-			const updated: Task = { ...current, status: "deleted" };
-			const newTasks = [...state.tasks];
-			newTasks[idx] = updated;
-			return {
-				state: { tasks: newTasks, nextId: state.nextId },
-				op: { kind: "delete", id: updated.id, subject: updated.subject },
-			};
+			return deleteSingleTask(state, params.id);
 		}
 		case "clear": {
 			return {
@@ -592,6 +863,39 @@ function formatContent(op: Op, state: TaskState): string {
 		}
 		case "get":
 			return formatGetLines(op.task, state);
+		case "createMany": {
+			const created: Task[] = [];
+			for (const id of op.ids) {
+				const task = state.tasks.find((t) => t.id === id);
+				if (task) created.push(task);
+			}
+			const head =
+				created.length === 0
+					? "Created 0 tasks"
+					: `Created ${created.length} task${created.length === 1 ? "" : "s"}: ${created
+							.map((t) => `#${t.id} ${sanitizeTerminalText(t.subject)}`)
+							.join(", ")}`;
+			return [head, ...op.errors.map((e) => `Error: ${e}`)].join("\n");
+		}
+		case "updateMany": {
+			const head =
+				op.ids.length === 0
+					? "Updated 0 tasks"
+					: `Updated ${op.ids.length} task${op.ids.length === 1 ? "" : "s"}: ${op.ids.map((id) => `#${id}`).join(", ")}`;
+			return [head, ...op.errors.map((e) => `Error: ${e}`)].join("\n");
+		}
+		case "deleteMany": {
+			const head =
+				op.ids.length === 0
+					? "Deleted 0 tasks"
+					: `Deleted ${op.ids.length} task${op.ids.length === 1 ? "" : "s"}: ${op.ids.map((id) => `#${id}`).join(", ")}`;
+			return [head, ...op.errors.map((e) => `Error: ${e}`)].join("\n");
+		}
+		case "getMany": {
+			const lines = op.found.map((t) => formatGetLines(t, state));
+			for (const id of op.missing) lines.push(`Error: #${id} not found`);
+			return lines.length === 0 ? "No tasks" : lines.join("\n\n");
+		}
 		case "error":
 			return `Error: ${op.message}`;
 	}
@@ -762,7 +1066,16 @@ function renderTodoCall(
 	const glyph = ACTION_GLYPH[args.action] ?? args.action;
 	let text =
 		theme.fg("toolTitle", theme.bold("todo ")) + theme.fg("muted", glyph);
-	if (args.action === "create" && args.subject) {
+	if (args.action === "create" && args.tasks) {
+		text += ` ${theme.fg("dim", `+${args.tasks.length} tasks`)}`;
+	} else if (args.action === "update" && args.updates) {
+		text += ` ${theme.fg("muted", `→ ${args.updates.length} tasks`)}`;
+	} else if (
+		(args.action === "delete" || args.action === "get") &&
+		args.ids
+	) {
+		text += ` ${theme.fg("accent", args.ids.map((id) => `#${id}`).join(", "))}`;
+	} else if (args.action === "create" && args.subject) {
 		text += ` ${theme.fg("dim", sanitizeTerminalText(args.subject))}`;
 	} else if (
 		(args.action === "update" ||
@@ -780,6 +1093,30 @@ function renderTodoCall(
 
 function renderTodoResult(result: { details?: unknown }, theme: Theme): Text {
 	const details = result.details as TaskDetails | undefined;
+	const batchCount = ((): number | undefined => {
+		if (!details) return undefined;
+		const params = details.params as TaskMutationParams;
+		if (details.action === "create" && Array.isArray(params.tasks))
+			return params.tasks.length;
+		if (details.action === "update" && Array.isArray(params.updates))
+			return params.updates.length;
+		if (
+			(details.action === "delete" || details.action === "get") &&
+			Array.isArray(params.ids)
+		)
+			return params.ids.length;
+		return undefined;
+	})();
+	if (batchCount !== undefined) {
+		return new Text(
+			theme.fg(
+				"success",
+				`✓ ${batchCount} task${batchCount === 1 ? "" : "s"}`,
+			),
+			0,
+			0,
+		);
+	}
 	let status: TaskStatus | undefined;
 	if (details) {
 		const params = details.params as TaskMutationParams;
