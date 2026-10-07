@@ -1,4 +1,8 @@
-import type { ExtensionAPI, Theme } from "@earendil-works/pi-coding-agent";
+import type {
+	ExtensionAPI,
+	ExtensionUIContext,
+	Theme,
+} from "@earendil-works/pi-coding-agent";
 import {
 	type Component,
 	type Focusable,
@@ -38,10 +42,14 @@ Every question must provide 2-4 clear options. If one option is genuinely prefer
 
 Users can always choose "${CUSTOM_ANSWER_LABEL}" and write their own answer. Markdown previews are useful for code snippets, UI mockups, diagrams, and configuration examples. Use previews only when seeing the artifact helps the user decide.`;
 
-const PROMPT_GUIDELINES = [
+const COMMON_PROMPT_GUIDELINES = [
 	`Use ask_user_question when you cannot proceed without a concrete user decision. Group related questions into one call.`,
 	`Give every question ${MIN_OPTIONS}-${MAX_OPTIONS} concise options with useful descriptions.`,
 	`When one choice is genuinely best, put it first and suffix its label with "${RECOMMENDED_SUFFIX}".`,
+];
+
+const PROMPT_GUIDELINES = [
+	...COMMON_PROMPT_GUIDELINES,
 	`Use option previews for code, mockups, diagrams, or configuration that the user should inspect before deciding.`,
 ];
 
@@ -88,6 +96,39 @@ const AskUserQuestionSchema = Type.Object({
 		description: `The 1-${MAX_QUESTIONS} questions to ask together.`,
 	}),
 });
+
+const RpcAskUserQuestionSchema = Type.Object(
+	{
+		questions: Type.Array(
+			Type.Object(
+				{
+					question: QuestionSchema.properties.question,
+					header: QuestionSchema.properties.header,
+					options: Type.Array(
+						Type.Omit(OptionSchema, ["preview"], {
+							additionalProperties: false,
+						}),
+						{ minItems: MIN_OPTIONS, maxItems: MAX_OPTIONS },
+					),
+				},
+				{ additionalProperties: false },
+			),
+			{ minItems: 1, maxItems: MAX_QUESTIONS },
+		),
+	},
+	{ additionalProperties: false },
+);
+
+const RPC_TOOL_DESCRIPTION = `Ask the user structured questions through selection and text dialogs.
+Each question accepts one choice or a custom text answer.
+Questions appear sequentially. Previews and multiple selections are not supported.
+For multiple answers, request a custom text answer or ask separate questions.`;
+
+const RPC_PROMPT_GUIDELINES = [
+	...COMMON_PROMPT_GUIDELINES,
+	"Use one choice per question. Do not include previews or multiSelect.",
+	"For multiple answers, request a custom text answer or ask separate questions.",
+];
 
 type AskUserQuestionParams = Static<typeof AskUserQuestionSchema>;
 type Question = AskUserQuestionParams["questions"][number];
@@ -159,6 +200,70 @@ export function buildToolText(result: QuestionnaireResult): string {
 		return line;
 	});
 	return `User answered the questions:\n${lines.join("\n")}\nContinue using these decisions.`;
+}
+
+async function askRpcQuestions(
+	params: AskUserQuestionParams,
+	ui: ExtensionUIContext,
+	signal: AbortSignal | undefined,
+): Promise<QuestionnaireResult> {
+	const answers: Answer[] = [];
+	for (const question of params.questions) {
+		if (signal?.aborted) return { answers, cancelled: true };
+		if (
+			"multiSelect" in question ||
+			question.options.some((option) => "preview" in option)
+		) {
+			throw new Error(
+				"RPC questions do not support previews or multiSelect. Request a text answer or ask separate questions.",
+			);
+		}
+	}
+
+	for (const [questionIndex, question] of params.questions.entries()) {
+		if (signal?.aborted) return { answers, cancelled: true };
+		const title = `${question.header}: ${question.question}`;
+		const choices = question.options.map(
+			(option, index) => `${index + 1}. ${option.label} — ${option.description}`,
+		);
+		const selected = await ui.select(
+			title,
+			[...choices, CUSTOM_ANSWER_LABEL],
+			{ signal },
+		);
+		if (selected === undefined || signal?.aborted)
+			return { answers, cancelled: true };
+
+		if (selected === CUSTOM_ANSWER_LABEL) {
+			let placeholder = "Type your answer.";
+			while (true) {
+				const text = await ui.input(title, placeholder, { signal });
+				if (text === undefined || signal?.aborted)
+					return { answers, cancelled: true };
+				const value = text.trim();
+				if (value) {
+					answers.push({
+						questionIndex,
+						question: question.question,
+						kind: "custom",
+						value,
+					});
+					break;
+				}
+				placeholder = "Write an answer before submitting.";
+			}
+		} else {
+			const optionIndex = choices.indexOf(selected);
+			if (optionIndex < 0) throw new Error("The dialog returned an unknown option.");
+			answers.push({
+				questionIndex,
+				question: question.question,
+				kind: "option",
+				value: question.options[optionIndex].label,
+			});
+		}
+	}
+	return { answers, cancelled: false };
 }
 
 // Terminal questionnaire
@@ -679,22 +784,31 @@ class Questionnaire implements Component, Focusable {
 }
 
 // Extension
+/** Registers the interface for the session mode before the first model request. */
 export default function askUserQuestionExtension(pi: ExtensionAPI): void {
+	pi.on("session_start", (_event, sessionContext) => {
+		registerQuestionTool(pi, sessionContext.mode === "rpc");
+	});
+}
+
+function registerQuestionTool(pi: ExtensionAPI, rpc: boolean): void {
 	pi.registerTool({
 		name: "ask_user_question",
 		label: "Ask User Question",
-		description: TOOL_DESCRIPTION,
-		promptSnippet: `Ask up to ${MAX_QUESTIONS} structured questions and show optional Markdown previews`,
-		promptGuidelines: PROMPT_GUIDELINES,
-		parameters: AskUserQuestionSchema,
+		description: rpc ? RPC_TOOL_DESCRIPTION : TOOL_DESCRIPTION,
+		promptSnippet: rpc
+			? `Ask up to ${MAX_QUESTIONS} questions through selection and text dialogs`
+			: `Ask up to ${MAX_QUESTIONS} structured questions and show optional Markdown previews`,
+		promptGuidelines: rpc ? RPC_PROMPT_GUIDELINES : PROMPT_GUIDELINES,
+		parameters: rpc ? RpcAskUserQuestionSchema : AskUserQuestionSchema,
 
-		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-			if (ctx.mode !== "tui") {
+		async execute(_toolCallId, params, signal, _onUpdate, ctx) {
+			if (ctx.mode !== "tui" && ctx.mode !== "rpc") {
 				return {
 					content: [
 						{
 							type: "text" as const,
-							text: "Error: ask_user_question requires Pi's interactive terminal.",
+							text: "Error: ask_user_question requires TUI or RPC dialogs.",
 						},
 					],
 					details: {
@@ -714,6 +828,14 @@ export default function askUserQuestionExtension(pi: ExtensionAPI): void {
 						answers: [],
 						cancelled: true,
 					} satisfies QuestionnaireResult,
+				};
+			}
+
+			if (ctx.mode === "rpc") {
+				const result = await askRpcQuestions(params, ctx.ui, signal);
+				return {
+					content: [{ type: "text" as const, text: buildToolText(result) }],
+					details: result,
 				};
 			}
 
