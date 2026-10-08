@@ -1,5 +1,10 @@
 {
   "spinnerTipsEnabled": false,
   "prefersReducedMotion": true,
-  "outputStyle": "default"
+  "outputStyle": "default",
+  "syncClaudeAiSkills": false,
+  "terminalProgressBarEnabled": false,
+  "remoteControlAtStartup": false,
+  "awaySummaryEnabled": false,
+  "promptSuggestionEnabled": false
 }
