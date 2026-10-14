@@ -19,15 +19,14 @@ const PROMPT_GUIDELINES: string[] = [
 	"Batch independent work in one call: create a whole list with one `create` call using `tasks`, change several tasks with one `update` call using `updates`, and read or remove several tasks with one call using `ids`. Never send one call per task.",
 	"When starting a task from the todo list, mark it in_progress BEFORE beginning work. Mark it completed IMMEDIATELY when done — never batch completions. Exactly one task in_progress at a time.",
 	"Never mark a task completed if tests are failing, the implementation is partial, or you hit unresolved errors — keep it in_progress and create a new task for the blocker instead.",
-	"Task status is a 4-state machine: pending → in_progress → completed, plus deleted as a tombstone. Pass activeForm (present-continuous label, e.g. 'writing tests') when marking in_progress.",
-	'To change a task\'s status, call update with the task id and the target status, e.g. {"action":"update","id":3,"status":"completed"} or {"action":"update","id":3,"status":"in_progress","activeForm":"writing tests"}. status is the field that changes the task; an update without a mutable field (status or another) is rejected.',
-	"Use blockedBy to express dependencies (A is blocked by B). On create, pass blockedBy as the initial set. On update, use addBlockedBy / removeBlockedBy (additive merge — do not resend the full array). Cycles are rejected.",
+	"Task status is a 4-state machine: pending → in_progress → completed, plus deleted as a tombstone. You can set status at creation; it defaults to pending.",
+	'To change a task\'s status, call update with the task id and the target status, e.g. {"action":"update","id":3,"status":"completed"}. status is the field that changes the task; an update without a mutable field (status or another) is rejected.',
 	"list hides tombstoned (deleted) tasks by default; pass includeDeleted:true to see them. Pass status to filter by a single status.",
-	"Subject must be short and imperative (e.g. 'Research existing tool'); description is for long-form detail. activeForm is a present-continuous label shown while in_progress.",
+	"Subject must be short and imperative (e.g. 'Research existing tool'); description is for long-form detail.",
 ];
 
 const TOOL_DESCRIPTION =
-	"Manage a task list for tracking multi-step progress. Actions: create (one task via subject, or many via tasks[]), update (one task via id plus fields, or many via updates[]), list (all tasks, optionally filtered by status), get (one task via id, or many via ids[]), delete (one task via id, or many via ids[]), clear (reset all). Status: pending → in_progress → completed, plus deleted tombstone. Use this to plan and track multi-step work like research, design, and implementation.";
+	"Manage a task list for tracking multi-step progress. Actions: create (one task via subject, or many via tasks[], with optional status), update (one task via id plus fields, or many via updates[]), list (all tasks, optionally filtered by status), get (one task via id, or many via ids[]), delete (one task via id, or many via ids[]), clear (reset all). Status: pending → in_progress → completed, plus deleted tombstone. Use this to plan and track multi-step work like research, design, and implementation.";
 
 const MAX_WIDGET_LINES = 12;
 
@@ -42,11 +41,7 @@ interface Task {
 	id: number;
 	subject: string;
 	description?: string;
-	activeForm?: string;
 	status: TaskStatus;
-	blockedBy?: number[];
-	owner?: string;
-	metadata?: Record<string, unknown>;
 }
 
 // Shape pinned by replay: every tool result persists this in `details`,
@@ -62,35 +57,21 @@ interface TaskDetails {
 interface TaskInput {
 	subject: string;
 	description?: string;
-	activeForm?: string;
-	blockedBy?: number[];
-	owner?: string;
-	metadata?: Record<string, unknown>;
+	status?: TaskStatus;
 }
 
 interface TaskUpdateInput {
 	id: number;
 	subject?: string;
 	description?: string;
-	activeForm?: string;
 	status?: TaskStatus;
-	owner?: string;
-	metadata?: Record<string, unknown>;
-	addBlockedBy?: number[];
-	removeBlockedBy?: number[];
 }
 
 interface TaskMutationParams {
 	[key: string]: unknown;
 	subject?: string;
 	description?: string;
-	activeForm?: string;
 	status?: TaskStatus;
-	blockedBy?: number[];
-	addBlockedBy?: number[];
-	removeBlockedBy?: number[];
-	owner?: string;
-	metadata?: Record<string, unknown>;
 	id?: number;
 	includeDeleted?: boolean;
 	tasks?: TaskInput[];
@@ -110,24 +91,15 @@ const TaskInputSchema = Type.Object({
 	description: Type.Optional(
 		Type.String({ description: "Long-form task description" }),
 	),
-	activeForm: Type.Optional(
-		Type.String({
-			description:
-				"Present-continuous spinner label shown while status is in_progress (e.g. 'writing tests')",
-		}),
-	),
-	blockedBy: Type.Optional(
-		Type.Array(Type.Number(), {
-			description: "Initial blockedBy ids (create only)",
-		}),
-	),
-	owner: Type.Optional(
-		Type.String({ description: "Agent/owner assigned to this task" }),
-	),
-	metadata: Type.Optional(
-		Type.Record(Type.String(), Type.Unknown(), {
-			description: "Arbitrary metadata",
-		}),
+	status: Type.Optional(
+		Type.Union(
+			[
+				Type.Literal("pending"),
+				Type.Literal("in_progress"),
+				Type.Literal("completed"),
+			],
+			{ description: "Initial status (create only). Default: pending." },
+		),
 	),
 });
 
@@ -139,12 +111,6 @@ const TaskUpdateInputSchema = Type.Object({
 	description: Type.Optional(
 		Type.String({ description: "Long-form task description" }),
 	),
-	activeForm: Type.Optional(
-		Type.String({
-			description:
-				"Present-continuous spinner label shown while status is in_progress (e.g. 'writing tests')",
-		}),
-	),
 	status: Type.Optional(
 		Type.Union(
 			[
@@ -155,25 +121,6 @@ const TaskUpdateInputSchema = Type.Object({
 			],
 			{ description: "Set this task's status" },
 		),
-	),
-	owner: Type.Optional(
-		Type.String({ description: "Agent/owner assigned to this task" }),
-	),
-	metadata: Type.Optional(
-		Type.Record(Type.String(), Type.Unknown(), {
-			description:
-				"Arbitrary metadata; pass null value for a key to delete that key on update",
-		}),
-	),
-	addBlockedBy: Type.Optional(
-		Type.Array(Type.Number(), {
-			description: "Task ids to add to blockedBy (additive merge)",
-		}),
-	),
-	removeBlockedBy: Type.Optional(
-		Type.Array(Type.Number(), {
-			description: "Task ids to remove from blockedBy (additive merge)",
-		}),
 	),
 });
 
@@ -195,12 +142,6 @@ const TodoParamsSchema = Type.Object({
 	description: Type.Optional(
 		Type.String({ description: "Long-form task description" }),
 	),
-	activeForm: Type.Optional(
-		Type.String({
-			description:
-				"Present-continuous spinner label shown while status is in_progress (e.g. 'writing tests')",
-		}),
-	),
 	status: Type.Optional(
 		Type.Union(
 			[
@@ -211,34 +152,9 @@ const TodoParamsSchema = Type.Object({
 			],
 			{
 				description:
-					"Set this task's status (update): one of pending, in_progress, completed, deleted. When action is list, filters returned tasks by this status.",
+					"Initial status (create) or new status (update). When action is list, filters returned tasks by this status.",
 			},
 		),
-	),
-	blockedBy: Type.Optional(
-		Type.Array(Type.Number(), {
-			description: "Initial blockedBy ids (create only)",
-		}),
-	),
-	addBlockedBy: Type.Optional(
-		Type.Array(Type.Number(), {
-			description: "Task ids to add to blockedBy (update only, additive merge)",
-		}),
-	),
-	removeBlockedBy: Type.Optional(
-		Type.Array(Type.Number(), {
-			description:
-				"Task ids to remove from blockedBy (update only, additive merge)",
-		}),
-	),
-	owner: Type.Optional(
-		Type.String({ description: "Agent/owner assigned to this task" }),
-	),
-	metadata: Type.Optional(
-		Type.Record(Type.String(), Type.Unknown(), {
-			description:
-				"Arbitrary metadata; pass null value for a key to delete that key on update",
-		}),
 	),
 	id: Type.Optional(
 		Type.Number({ description: "Task id (required for update, get, delete)" }),
@@ -306,50 +222,6 @@ function isTransitionValid(from: TaskStatus, to: TaskStatus): boolean {
 	return VALID_TRANSITIONS[from].has(to);
 }
 
-function detectCycle(
-	taskList: readonly Task[],
-	taskId: number,
-	newBlockedBy: readonly number[],
-): boolean {
-	const edges = new Map<number, number[]>();
-	for (const t of taskList) {
-		if (t.id === taskId) {
-			edges.set(t.id, [...new Set([...(t.blockedBy ?? []), ...newBlockedBy])]);
-		} else {
-			edges.set(t.id, t.blockedBy ? [...t.blockedBy] : []);
-		}
-	}
-	const visiting = new Set<number>();
-	const visited = new Set<number>();
-	const hasCycleFrom = (node: number): boolean => {
-		if (visiting.has(node)) return true;
-		if (visited.has(node)) return false;
-		visiting.add(node);
-		for (const next of edges.get(node) ?? []) {
-			if (hasCycleFrom(next)) return true;
-		}
-		visiting.delete(node);
-		visited.add(node);
-		return false;
-	};
-	for (const node of edges.keys()) {
-		if (hasCycleFrom(node)) return true;
-	}
-	return false;
-}
-
-function deriveBlocks(taskList: readonly Task[]): Map<number, number[]> {
-	const blocks = new Map<number, number[]>();
-	for (const t of taskList) {
-		for (const dep of t.blockedBy ?? []) {
-			const arr = blocks.get(dep) ?? [];
-			arr.push(t.id);
-			blocks.set(dep, arr);
-		}
-	}
-	return blocks;
-}
-
 type Op =
 	| { kind: "create"; taskId: number }
 	| {
@@ -378,56 +250,25 @@ function errorResult(state: TaskState, message: string): ApplyResult {
 	return { state, op: { kind: "error", message } };
 }
 
-function sameNumberList(
-	a: number[] | undefined,
-	b: number[] | undefined,
-): boolean {
-	const x = a ?? [];
-	const y = b ?? [];
-	return x.length === y.length && x.every((v, i) => v === y[i]);
-}
-
-function sameRecord(
-	a: Record<string, unknown> | undefined,
-	b: Record<string, unknown> | undefined,
-): boolean {
-	return JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
-}
-
 function taskChanged(before: Task, after: Task): boolean {
 	return (
 		before.subject !== after.subject ||
 		before.status !== after.status ||
-		before.description !== after.description ||
-		before.activeForm !== after.activeForm ||
-		before.owner !== after.owner ||
-		!sameNumberList(before.blockedBy, after.blockedBy) ||
-		!sameRecord(before.metadata, after.metadata)
+		before.description !== after.description
 	);
 }
 
 function createSingleTask(state: TaskState, input: TaskInput): ApplyResult {
 	if (typeof input.subject !== "string" || !input.subject.trim())
 		return errorResult(state, "subject required for create");
-	if (input.blockedBy?.length) {
-		for (const dep of input.blockedBy) {
-			const depTask = state.tasks.find((t) => t.id === dep);
-			if (!depTask)
-				return errorResult(state, `blockedBy: #${dep} not found`);
-			if (depTask.status === "deleted")
-				return errorResult(state, `blockedBy: #${dep} is deleted`);
-		}
-	}
+	if (input.status === "deleted")
+		return errorResult(state, "cannot create a deleted task");
 	const newTask: Task = {
 		id: state.nextId,
 		subject: input.subject,
-		status: "pending",
+		status: input.status ?? "pending",
 	};
 	if (input.description) newTask.description = input.description;
-	if (input.activeForm) newTask.activeForm = input.activeForm;
-	if (input.blockedBy?.length) newTask.blockedBy = [...input.blockedBy];
-	if (input.owner) newTask.owner = input.owner;
-	if (input.metadata) newTask.metadata = { ...input.metadata };
 	return {
 		state: { tasks: [...state.tasks, newTask], nextId: state.nextId + 1 },
 		op: { kind: "create", taskId: newTask.id },
@@ -445,16 +286,11 @@ function updateSingleTask(
 	const hasMutation =
 		fields.subject !== undefined ||
 		fields.description !== undefined ||
-		fields.activeForm !== undefined ||
-		fields.status !== undefined ||
-		fields.owner !== undefined ||
-		fields.metadata !== undefined ||
-		(fields.addBlockedBy && fields.addBlockedBy.length > 0) ||
-		(fields.removeBlockedBy && fields.removeBlockedBy.length > 0);
+		fields.status !== undefined;
 	if (!hasMutation) {
 		return errorResult(
 			state,
-			"update requires at least one mutable field: subject, description, activeForm, status, owner, metadata, addBlockedBy, or removeBlockedBy",
+			"update requires at least one mutable field: subject, description, or status",
 		);
 	}
 	let newStatus = current.status;
@@ -467,49 +303,10 @@ function updateSingleTask(
 		}
 		newStatus = fields.status;
 	}
-	let newBlockedBy = current.blockedBy ? [...current.blockedBy] : [];
-	if (fields.removeBlockedBy?.length) {
-		const toRemove = new Set(fields.removeBlockedBy);
-		newBlockedBy = newBlockedBy.filter((dep) => !toRemove.has(dep));
-	}
-	if (fields.addBlockedBy?.length) {
-		for (const dep of fields.addBlockedBy) {
-			if (dep === current.id)
-				return errorResult(state, `cannot block #${current.id} on itself`);
-			const depTask = state.tasks.find((t) => t.id === dep);
-			if (!depTask)
-				return errorResult(state, `addBlockedBy: #${dep} not found`);
-			if (depTask.status === "deleted")
-				return errorResult(state, `addBlockedBy: #${dep} is deleted`);
-			if (!newBlockedBy.includes(dep)) newBlockedBy.push(dep);
-		}
-		if (detectCycle(state.tasks, current.id, newBlockedBy)) {
-			return errorResult(
-				state,
-				"addBlockedBy would create a cycle in the blockedBy graph",
-			);
-		}
-	}
-	let newMetadata = current.metadata;
-	if (fields.metadata !== undefined) {
-		const merged: Record<string, unknown> = { ...(current.metadata ?? {}) };
-		for (const [k, v] of Object.entries(fields.metadata)) {
-			if (v === null) delete merged[k];
-			else merged[k] = v;
-		}
-		newMetadata = Object.keys(merged).length ? merged : undefined;
-	}
 	const updated: Task = { ...current, status: newStatus };
 	if (fields.subject !== undefined) updated.subject = fields.subject;
 	if (fields.description !== undefined)
 		updated.description = fields.description;
-	if (fields.activeForm !== undefined)
-		updated.activeForm = fields.activeForm;
-	if (fields.owner !== undefined) updated.owner = fields.owner;
-	if (newBlockedBy.length) updated.blockedBy = newBlockedBy;
-	else delete updated.blockedBy;
-	if (newMetadata === undefined) delete updated.metadata;
-	else updated.metadata = newMetadata;
 	const newTasks = [...state.tasks];
 	newTasks[idx] = updated;
 	return {
@@ -543,10 +340,7 @@ function hasSingleCreateFields(params: TaskMutationParams): boolean {
 	return (
 		params.subject !== undefined ||
 		params.description !== undefined ||
-		params.activeForm !== undefined ||
-		params.blockedBy !== undefined ||
-		params.owner !== undefined ||
-		params.metadata !== undefined
+		params.status !== undefined
 	);
 }
 
@@ -555,12 +349,7 @@ function hasSingleUpdateFields(params: TaskMutationParams): boolean {
 		params.id !== undefined ||
 		params.subject !== undefined ||
 		params.description !== undefined ||
-		params.activeForm !== undefined ||
-		params.status !== undefined ||
-		params.owner !== undefined ||
-		params.metadata !== undefined ||
-		params.addBlockedBy !== undefined ||
-		params.removeBlockedBy !== undefined
+		params.status !== undefined
 	);
 }
 
@@ -601,10 +390,7 @@ function applyTaskMutation(
 			return createSingleTask(state, {
 				subject: params.subject,
 				description: params.description,
-				activeForm: params.activeForm,
-				blockedBy: params.blockedBy,
-				owner: params.owner,
-				metadata: params.metadata,
+				status: params.status,
 			});
 		}
 		case "update": {
@@ -641,12 +427,7 @@ function applyTaskMutation(
 			return updateSingleTask(state, params.id, {
 				subject: params.subject,
 				description: params.description,
-				activeForm: params.activeForm,
 				status: params.status,
-				owner: params.owner,
-				metadata: params.metadata,
-				addBlockedBy: params.addBlockedBy,
-				removeBlockedBy: params.removeBlockedBy,
 			});
 		}
 		case "list": {
@@ -746,12 +527,6 @@ function selectTodoCounts(state: TaskState): TodoCounts {
 	return counts;
 }
 
-function selectShowTaskIds(state: TaskState): boolean {
-	return selectVisibleTasks(state).some(
-		(t) => t.blockedBy && t.blockedBy.length > 0,
-	);
-}
-
 function selectTaskSubjectById(
 	state: TaskState,
 	id: number,
@@ -803,32 +578,15 @@ function selectHasActive(state: TaskState): boolean {
 }
 
 function formatListLine(t: Task): string {
-	const block = t.blockedBy?.length
-		? ` ⛓ ${t.blockedBy.map((id) => `#${id}`).join(",")}`
-		: "";
-	const form =
-		t.status === "in_progress" && t.activeForm
-			? ` (${sanitizeTerminalText(t.activeForm)})`
-			: "";
-	return `[${t.status}] #${t.id} ${sanitizeTerminalText(t.subject)}${form}${block}`;
+	return `[${t.status}] #${t.id} ${sanitizeTerminalText(t.subject)}`;
 }
 
-function formatGetLines(task: Task, state: TaskState): string {
-	const blocks = deriveBlocks(state.tasks).get(task.id) ?? [];
+function formatGetLines(task: Task): string {
 	const lines = [
 		`#${task.id} [${task.status}] ${sanitizeTerminalText(task.subject)}`,
 	];
 	if (task.description)
 		lines.push(`  description: ${sanitizeTerminalText(task.description)}`);
-	if (task.activeForm)
-		lines.push(`  activeForm: ${sanitizeTerminalText(task.activeForm)}`);
-	if (task.blockedBy?.length)
-		lines.push(
-			`  blockedBy: ${task.blockedBy.map((id) => `#${id}`).join(", ")}`,
-		);
-	if (blocks.length)
-		lines.push(`  blocks: ${blocks.map((id) => `#${id}`).join(", ")}`);
-	if (task.owner) lines.push(`  owner: ${sanitizeTerminalText(task.owner)}`);
 	return lines.join("\n");
 }
 
@@ -837,7 +595,7 @@ function formatContent(op: Op, state: TaskState): string {
 		case "create": {
 			const t = state.tasks.find((x) => x.id === op.taskId);
 			if (!t) return `Created #${op.taskId}`;
-			return `Created #${t.id}: ${sanitizeTerminalText(t.subject)} (pending)`;
+			return `Created #${t.id}: ${sanitizeTerminalText(t.subject)} (${t.status})`;
 		}
 		case "update": {
 			if (!op.changed)
@@ -862,7 +620,7 @@ function formatContent(op: Op, state: TaskState): string {
 				: view.map(formatListLine).join("\n");
 		}
 		case "get":
-			return formatGetLines(op.task, state);
+			return formatGetLines(op.task);
 		case "createMany": {
 			const created: Task[] = [];
 			for (const id of op.ids) {
@@ -892,7 +650,7 @@ function formatContent(op: Op, state: TaskState): string {
 			return [head, ...op.errors.map((e) => `Error: ${e}`)].join("\n");
 		}
 		case "getMany": {
-			const lines = op.found.map((t) => formatGetLines(t, state));
+			const lines = op.found.map((t) => formatGetLines(t));
 			for (const id of op.missing) lines.push(`Error: #${id} not found`);
 			return lines.length === 0 ? "No tasks" : lines.join("\n\n");
 		}
@@ -1035,7 +793,7 @@ function overlayStatusGlyph(status: TaskStatus, theme: Theme): string {
 	}
 }
 
-function formatOverlayTaskLine(t: Task, theme: Theme, showId: boolean): string {
+function formatOverlayTaskLine(t: Task, theme: Theme): string {
 	const glyph = overlayStatusGlyph(t.status, theme);
 	const subjectColor =
 		t.status === "in_progress"
@@ -1047,14 +805,7 @@ function formatOverlayTaskLine(t: Task, theme: Theme, showId: boolean): string {
 	if (t.status === "completed" || t.status === "deleted")
 		subject = theme.strikethrough(subject);
 	let line = `${glyph}`;
-	if (showId) line += ` ${theme.fg("dim", `#${t.id}`)}`;
 	line += ` ${subject}`;
-	if (t.status === "in_progress" && t.activeForm) {
-		line += ` ${theme.fg("muted", `(${sanitizeTerminalText(t.activeForm)})`)}`;
-	}
-	if (t.blockedBy && t.blockedBy.length > 0) {
-		line += ` ${theme.fg("muted", `⛓ ${t.blockedBy.map((id) => `#${id}`).join(",")}`)}`;
-	}
 	return line;
 }
 
@@ -1257,7 +1008,6 @@ class TodoOverlay {
 			truncateToWidth(line, width, "…");
 		const counts = selectTodoCounts(overlayState);
 		const hasActive = selectHasActive(overlayState);
-		const showIds = selectShowTaskIds(overlayState);
 		const headingColor = hasActive ? "accent" : "dim";
 		const headingIcon = hasActive ? "●" : "○";
 		const heading = truncate(
@@ -1272,7 +1022,7 @@ class TodoOverlay {
 		for (const task of layout.visible) {
 			lines.push(
 				truncate(
-					`${theme.fg("dim", "├─")} ${formatOverlayTaskLine(task, theme, showIds)}`,
+					`${theme.fg("dim", "├─")} ${formatOverlayTaskLine(task, theme)}`,
 				),
 			);
 		}
