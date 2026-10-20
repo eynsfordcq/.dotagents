@@ -102,19 +102,18 @@ Apply these rules to non-test Python code. Use Ruff and Black for general format
 
 Use these naming conventions:
 
-| Entity | Convention | Example |
-|---|---|---|
-| Package or module | Use `lower_with_under`. | `data_pipeline` |
-| Class or exception | Use `CapWords`. | `BatchProcessor`, `QuotaExceededError` |
-| Function or method | Use `lower_with_under`. | `fetch_records()` |
-| Global or class constant | Use `CAPS_WITH_UNDER`. | `MAX_BATCH_SIZE` |
-| Instance or local variable | Use `lower_with_under`. | `retry_count` |
-| Internal member | Prefix the name with `_`. | `_build_query()` |
+| Entity                     | Convention                | Example                                |
+| -------------------------- | ------------------------- | -------------------------------------- |
+| Package or module          | Use `lower_with_under`.   | `data_pipeline`                        |
+| Class or exception         | Use `CapWords`.           | `BatchProcessor`, `QuotaExceededError` |
+| Function or method         | Use `lower_with_under`.   | `fetch_records()`                      |
+| Global or class constant   | Use `CAPS_WITH_UNDER`.    | `MAX_BATCH_SIZE`                       |
+| Instance or local variable | Use `lower_with_under`.   | `retry_count`                          |
+| Internal member            | Prefix the name with `_`. | `_build_query()`                       |
 
 - Do not use double-underscore prefixes for your own attributes. Use a single `_` instead.
 - Respect encapsulation: access internal members only within their domain. The `_` prefix marks this boundary by convention.
 - Improve the public API instead of accessing another domain's internal members.
-- Do not encode types in names, such as `user_dict` or `name_str`. Use type annotations instead.
 - Use abbreviations only when the domain widely recognizes them, such as `http`, `url`, `db`, or `cfg`.
 
 ## Module Structure
