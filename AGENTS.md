@@ -18,39 +18,28 @@ Do not put project-important facts in memory. Document them clearly under `docs/
 - things we discussed about the project
 - decisions made regarding the project
 
-## Explanation style
+## Response Style
 
-English is not my first language. Write explanations in ASD-STE100 (Simplified Technical English) style. 
-Apply it to chat replies, docs/, and code comments.
+English is not my first language. Write so a non-native reader understands each sentence on first read. Treat these as guidelines and use judgment.
 
-Apply these STE100 style:
+Prioritize precision, then clarity, then brevity: a clear 25-word sentence beats a vague 12-word one.
 
-- One idea per sentence. One instruction per sentence.
-- Aim for around 25 words in a sentence.
-- Use subject-verb-object order. Use the active voice.
-- Use simple tenses: present, past, future. Avoid "has been", "would have".
-- Every sentence has a verb. No fragments.
-- Aim for 6 sentences or fewer in a paragraph.
-- One word, one meaning. Use the same term for the same thing every time.
-- No idioms or phrasal verbs (e.g., "falls through", "spin up", "under the hood").
-- No compressed noun phrases. Say "we assert that headers match", not "headers are assertable".
+- Keep one main idea per sentence. Connect related ideas with suitable connectors, such as "because", "so", "but", "if", "and", or "however". Make the relationship clear and the sentence coherent.
+- Use active voice and simple tenses. State actions directly instead of using compressed or abstract wording: write "we assert that headers match," not "headers are assertable."
+- Terse replies like "Done." or "Good catch." are fine.
+- Favor common words. Avoid buzzwords, idioms, and phrasal verbs ("falls through", "spin up"). Technical terms and code identifiers are fine.
+- Use specific, consistent terms. Include enough detail to distinguish each concept from other meanings of the same word. Prefer explicit names over symbols or shorthand.
+- Make each response understandable on its own. Assume I may not remember earlier messages. Name the specific subject and repeat the necessary context instead of using vague references. Explain the cause or reasoning when it helps me understand how you reach the conclusion.
+- Define abstract terms on first use.
+- If I ask "what does this mean?", rewrite the unclear sentence so it is understandable on its own. Replace the unclear wording instead of adding an explanation after it.
+- Use tables for comparisons, bullets for lists, diagrams when many parts connect, and prose when the reasoning between ideas matters.
 
-Relax this STE100 rule:
+## Code Guidelines
 
-- Vocabulary. Do not limit words to the STE100 dictionary. Common software terms are OK (e.g., refactor, cache, mock, deploy). Treat code identifiers and software terms as technical names.
-- When a common word and a rare word have the same meaning, use the common word.
-- Keep sentences short, but you can join related ideas with "because", "so", "but", or "if".
-- Short replies like "Done." or "Good catch." are fine.
+Treat these as defaults, not hard rules; use your judgment.
 
-Also:
+Optimize for the design that is easiest to understand, test, and maintain — not the smallest diff, and not speculative abstraction.
 
-- Explain an abstract term the first time you use it.
-- Put lists of test cases or edge conditions in bullet points.
-- Prefer diagrams, tables, and ASCII call chains (`handler -> manager -> store`) over narrative paragraphs.
-- Precision is more important than STE100. If a rule removes technical detail, break the rule.
-
-## Code taste
-
-Prefer the design that is easiest to understand, test, and maintain — not the smallest diff, and not a speculative abstraction.
-
-Reshape, don't patch. When the shape is wrong, change the shape. Do not add a compensating layer, shim, or deprecated path. Delete replaced code in the same change.
+- **Redesign, don't bolt on.** When a change introduces a new requirement, rework the design as though that requirement had been a founding assumption. Read the affected code first, ask what you would build if starting from scratch today, carry the change through every reference (types, docs, examples, tests), and plan the full redesign before delivering it incrementally. Breaking changes are fine unless the project says otherwise: remove old behavior outright, with no shims, deprecated paths, or compensating layers, and delete replaced code in the same change.
+- **Don't fragment code into tiny functions.** Inline single-use helpers unless they represent real reuse or a separately testable unit.
+- **Guard only against plausible failures.** Skip defensive checks for states the code already rules out or that are vanishingly unlikely.
